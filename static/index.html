@@ -1,0 +1,415 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <title>KAI Student OS 2.0</title>
+  
+  <!-- PWA Meta -->
+  <meta name="theme-color" content="#0d0f12">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="KAI Student OS">
+  
+  <!-- Manifest & Icons -->
+  <link rel="manifest" href="/manifest.json?v=2.0">
+  <link rel="icon" type="image/svg+xml" href="/static/icon.svg">
+  <link rel="apple-touch-icon" href="/static/icon.svg">
+
+  <!-- Inter & Roboto Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet">
+
+  <link rel="stylesheet" href="/static/styles.css?v=2.0">
+</head>
+<body>
+
+  <!-- Top Ambient App Bar -->
+  <header class="top-bar">
+    <div class="brand">
+      <img src="/static/icon.svg" alt="КАИ Logo" class="brand-logo">
+      <div class="brand-info">
+        <h1 class="brand-title">Student OS</h1>
+        <span class="brand-badge">5108 • 2 п/г</span>
+      </div>
+    </div>
+    <div class="top-actions">
+      <button id="parity-toggle-btn" class="parity-pill" title="Переключить четность недели">
+        <svg class="pill-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M17 1l4 4-4 4"/>
+          <path d="M3 11V9a4 4 0 0 1 4-4h14"/>
+          <path d="M7 23l-4-4 4-4"/>
+          <path d="M21 13v2a4 4 0 0 1-4 4H3"/>
+        </svg>
+        <span id="parity-label">ЧЕТ</span>
+      </button>
+      <button id="gemini-open-btn" class="gemini-pill-btn" title="✨ Gemini AI Ассистент">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
+          <path d="M12 2l2.4 7.2L22 12l-7.6 2.8L12 22l-2.4-7.2L2 12l7.6-2.8z"/>
+        </svg>
+        <span>✨ AI</span>
+      </button>
+      <button id="global-refresh-btn" class="icon-circle-btn" title="Обновить данные и очистить кэш">
+        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"/>
+        </svg>
+      </button>
+    </div>
+  </header>
+
+  <!-- Main Scrollable App Views Container -->
+  <main class="content-container">
+
+    <!-- ==================== TAB 1: ⚡ СЕГОДНЯ / ФОКУС ==================== -->
+    <section id="view-focus" class="app-view active">
+      
+      <!-- Greeting Header -->
+      <div class="greeting-section">
+        <div class="greeting-pre">Личный кабинет студента</div>
+        <h2 class="greeting-name">Привет, Карим!</h2>
+        <div class="greeting-date" id="focus-date-label">Загрузка даты...</div>
+      </div>
+
+      <!-- Real-time Dynamic Hero Card -->
+      <div class="hero-live-card" id="hero-live-container">
+        <div class="hero-status-header">
+          <div class="status-pulse-badge" id="hero-status-badge">
+            <span class="pulse-ring"></span>
+            <span class="status-label" id="hero-status-text">Определение расписания...</span>
+          </div>
+          <div class="hero-time-badge" id="hero-time-slot">--:--</div>
+        </div>
+
+        <div class="hero-body">
+          <h3 class="hero-lesson-title" id="hero-lesson-title">Проверка расписания</h3>
+          <div class="hero-meta-row" id="hero-meta-row">
+            <span class="hero-chip building-chip" id="hero-building-chip">КАИ</span>
+            <span class="hero-meta-text" id="hero-teacher-text">Загрузка данных...</span>
+          </div>
+        </div>
+
+        <div class="hero-progress-wrapper" id="hero-progress-wrapper">
+          <div class="hero-progress-bar">
+            <div class="hero-progress-fill" id="hero-progress-fill" style="width: 0%"></div>
+          </div>
+          <div class="hero-progress-labels">
+            <span id="hero-progress-time-left">Осталось: --</span>
+            <span id="hero-progress-percent">0%</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Bento Grid Section -->
+      <div class="bento-grid">
+        
+        <!-- Bento Tile 1: Burning Deadlines -->
+        <div class="bento-tile bento-urgent">
+          <div class="tile-header">
+            <div class="tile-title-group">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#f87171" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M8.5 14.5A2.5 2.5 0 0 0 11 12c0-1.38-.5-2-1-3-1.072-2.143-.224-4.054 2-6 .5 2.5 2 4.9 4 6.5 2 1.6 3 3.5 3 5.5a7 7 0 1 1-14 0c0-1.153.433-2.294 1-3a2.5 2.5 0 0 0 2.5 2.5z"/>
+              </svg>
+              <span>Горит к сдаче</span>
+            </div>
+            <button class="tile-link-btn" onclick="switchTab('tasks')">Все (0)</button>
+          </div>
+          <div class="urgent-tasks-list" id="urgent-tasks-container">
+            <div class="task-placeholder">Поиск актуальных заданий...</div>
+          </div>
+        </div>
+
+        <!-- Bento Tile 2: Semester Progress Ring -->
+        <div class="bento-tile bento-progress">
+          <div class="tile-header">
+            <div class="tile-title-group">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#4d82f3" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                <line x1="18" y1="20" x2="18" y2="10"></line>
+                <line x1="12" y1="20" x2="12" y2="4"></line>
+                <line x1="6" y1="20" x2="6" y2="14"></line>
+              </svg>
+              <span>Прогресс семестра</span>
+            </div>
+            <span class="pill-badge" id="bento-motivation-badge">В начале пути</span>
+          </div>
+
+          <div class="progress-ring-card">
+            <div class="ring-container">
+              <svg class="ring-svg" viewBox="0 0 120 120">
+                <circle class="ring-bg" cx="60" cy="60" r="50"></circle>
+                <circle class="ring-fill" id="focus-ring-fill" cx="60" cy="60" r="50"></circle>
+              </svg>
+              <div class="ring-text">
+                <span class="ring-percent" id="focus-ring-percent">0%</span>
+                <span class="ring-sub">сдано</span>
+              </div>
+            </div>
+            <div class="progress-stats-summary">
+              <div class="stat-mini-row">
+                <span class="stat-mini-lbl">Сдано работ:</span>
+                <span class="stat-mini-val text-mint" id="focus-stat-done">0</span>
+              </div>
+              <div class="stat-mini-row">
+                <span class="stat-mini-lbl">Осталось сдать:</span>
+                <span class="stat-mini-val text-coral" id="focus-stat-todo">0</span>
+              </div>
+              <div class="stat-mini-row">
+                <span class="stat-mini-lbl">Всего в базе:</span>
+                <span class="stat-mini-val" id="focus-stat-total">0</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Bento Tile 3: Blackboard Sync Action -->
+        <div class="bento-tile bento-sync-tile">
+          <div class="sync-tile-content">
+            <div class="sync-info">
+              <h4>Синхронизация с Blackboard</h4>
+              <p>Сбор свежих лабораторных работ и методичек с bb.kai.ru</p>
+            </div>
+            <button id="bb-sync-btn" class="btn-primary-action">
+              <svg class="sync-spin-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"/>
+              </svg>
+              <span id="sync-btn-text">Обновить из Blackboard</span>
+            </button>
+          </div>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ==================== TAB 2: 📅 ТАЙМЛАЙН РАСПИСАНИЯ ==================== -->
+    <section id="view-schedule" class="app-view">
+      <!-- Weekday Selector Pills -->
+      <div class="day-pills-wrapper">
+        <div class="day-pills" id="schedule-day-pills">
+          <button class="day-pill" data-day="1">Пн</button>
+          <button class="day-pill" data-day="2">Вт</button>
+          <button class="day-pill" data-day="3">Ср</button>
+          <button class="day-pill" data-day="4">Чт</button>
+          <button class="day-pill" data-day="5">Пт</button>
+          <button class="day-pill" data-day="6">Сб</button>
+        </div>
+      </div>
+
+      <!-- Active Day Banner -->
+      <div class="timeline-day-header">
+        <h3 class="timeline-day-title" id="schedule-day-title">Понедельник</h3>
+        <span class="timeline-parity-badge" id="schedule-parity-badge">Четная неделя</span>
+      </div>
+
+      <!-- Vertical Timeline List -->
+      <div class="timeline-container" id="timeline-list">
+        <div class="loader-skeleton">
+          <div class="skeleton-line" style="width: 50%"></div>
+          <div class="skeleton-line" style="width: 80%"></div>
+          <div class="skeleton-line" style="width: 65%"></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ==================== TAB 3: 📝 ЗАДАНИЯ (SMART SPLIT) ==================== -->
+    <section id="view-tasks" class="app-view">
+      
+      <!-- Segmented Pill Switcher (Linear / Apple style) -->
+      <div class="segmented-control-wrapper">
+        <div class="segmented-control">
+          <button class="segment-btn active" data-segment="submissions" id="tab-btn-submissions">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M9 11l3 3L22 4"/>
+              <path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/>
+            </svg>
+            <span>К сдаче</span>
+            <span class="segment-badge" id="count-submissions-badge">0</span>
+          </button>
+          <button class="segment-btn" data-segment="materials" id="tab-btn-materials">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+              <polyline points="14 2 14 8 20 8"/>
+              <line x1="16" y1="13" x2="8" y2="13"/>
+              <line x1="16" y1="17" x2="8" y2="17"/>
+              <polyline points="10 9 9 9 8 9"/>
+            </svg>
+            <span>Методички и файлы</span>
+            <span class="segment-badge badge-neutral" id="count-materials-badge">0</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- Filters & Search Toolbar -->
+      <div class="tasks-toolbar">
+        <div class="status-chips-row" id="tasks-status-row">
+          <button class="filter-chip active" data-status="all">Все</button>
+          <button class="filter-chip" data-status="todo">В процессе</button>
+          <button class="filter-chip" data-status="done">Сдано</button>
+        </div>
+
+        <div class="search-capsule">
+          <svg class="search-icon" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="11" cy="11" r="8"></circle>
+            <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+          </svg>
+          <input type="text" id="task-search-input" placeholder="Поиск по названию или предмету...">
+        </div>
+      </div>
+
+      <!-- Quick Subject Horizontal Scroll -->
+      <div class="subject-chips-scroll" id="subject-filter-chips">
+        <button class="chip-subject active" data-subject-id="0">Все курсы</button>
+        <!-- Injected via JS -->
+      </div>
+
+      <!-- Course & Assignment Accordion List -->
+      <div id="tasks-main-container" class="accordion-list">
+        <div class="loader-skeleton">
+          <div class="skeleton-line" style="width: 70%"></div>
+          <div class="skeleton-line" style="width: 90%"></div>
+          <div class="skeleton-line" style="width: 50%"></div>
+        </div>
+      </div>
+
+    </section>
+
+  </main>
+
+  <!-- Floating Gemini Assistant FAB -->
+  <button id="gemini-fab-btn" class="gemini-floating-fab" title="✨ Gemini Voice & AI">
+    <div class="fab-glow-ring"></div>
+    <svg class="gemini-sparkle-svg" width="22" height="22" viewBox="0 0 24 24" fill="currentColor">
+      <path d="M12 2l2.4 7.2L22 12l-7.6 2.8L12 22l-2.4-7.2L2 12l7.6-2.8z"/>
+    </svg>
+  </button>
+
+  <!-- Modern Floating Dock Navigation Bar -->
+  <nav class="bottom-nav">
+    <button class="nav-btn active" data-tab="focus">
+      <div class="nav-indicator">
+        <svg class="nav-svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+          <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/>
+        </svg>
+      </div>
+      <span class="nav-label">Фокус</span>
+    </button>
+
+    <button class="nav-btn" data-tab="schedule">
+      <div class="nav-indicator">
+        <svg class="nav-svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+          <rect x="3" y="4" width="18" height="18" rx="4"></rect>
+          <line x1="16" y1="2" x2="16" y2="6"></line>
+          <line x1="8" y1="2" x2="8" y2="6"></line>
+          <line x1="3" y1="10" x2="21" y2="10"></line>
+        </svg>
+      </div>
+      <span class="nav-label">Таймлайн</span>
+    </button>
+
+    <button class="nav-btn" data-tab="tasks">
+      <div class="nav-indicator">
+        <svg class="nav-svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M9 11l3 3L22 4"/>
+          <path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/>
+        </svg>
+        <span class="nav-badge" id="bottom-todo-badge" style="display:none">0</span>
+      </div>
+      <span class="nav-label">Задания</span>
+    </button>
+  </nav>
+
+  <!-- ==================== GEMINI BOTTOM SHEET MODAL ==================== -->
+  <div id="gemini-modal-overlay" class="modal-backdrop">
+    <div class="bottom-sheet gemini-sheet" id="gemini-sheet">
+      <div class="sheet-drag-handle"></div>
+      
+      <div class="sheet-header">
+        <div class="gemini-header-brand">
+          <div class="gemini-avatar-glow">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor">
+              <path d="M12 2l2.4 7.2L22 12l-7.6 2.8L12 22l-2.4-7.2L2 12l7.6-2.8z"/>
+            </svg>
+          </div>
+          <div>
+            <h3 class="sheet-title">Gemini AI Ассистент</h3>
+            <p class="sheet-subtitle">Надиктуй голосом или вставь сообщение старосты</p>
+          </div>
+        </div>
+        <button id="gemini-close-btn" class="modal-close-btn" aria-label="Закрыть">&times;</button>
+      </div>
+
+      <!-- Quick Suggestion Chips -->
+      <div class="gemini-suggestions-row">
+        <button class="gemini-suggest-chip" data-prompt="К следующей среде по физике сделать отчет по лабе 2 и распечатать титульник">⚡ Физика: лаба 2</button>
+        <button class="gemini-suggest-chip" data-prompt="До пятницы сдать практическую работу 3 по высшей математике">📐 Вышмат: ПЗ 3</button>
+        <button class="gemini-suggest-chip" data-prompt="Подготовить доклад по основам российской государственности">🇷🇺 Доклад ОРГ</button>
+      </div>
+
+      <!-- Voice & Text Input Area -->
+      <div class="gemini-input-card">
+        <textarea id="gemini-text-input" class="gemini-textarea" rows="3" placeholder="Скажи голосом или вставь сюда: 'К следующей среде по физике сделать отчет по лабе 2 и титульник...'"></textarea>
+        
+        <div class="gemini-input-actions">
+          <button id="gemini-mic-btn" class="gemini-mic-button" title="Голосовой ввод (Web Speech API)">
+            <span class="mic-pulse-ring"></span>
+            <svg class="mic-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/>
+              <path d="M19 10v2a7 7 0 0 1-14 0v-2"/>
+              <line x1="12" y1="19" x2="12" y2="23"/>
+              <line x1="8" y1="23" x2="16" y2="23"/>
+            </svg>
+            <span id="gemini-mic-status">Голос</span>
+          </button>
+
+          <button id="gemini-submit-btn" class="gemini-submit-button">
+            <span>Распознать</span>
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+              <line x1="22" y1="2" x2="11" y2="13"></line>
+              <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
+            </svg>
+          </button>
+        </div>
+      </div>
+
+      <!-- Shimmer Wave Loader -->
+      <div id="gemini-shimmer-loader" class="gemini-shimmer-card" style="display: none;">
+        <div class="shimmer-wave-bar"></div>
+        <div class="shimmer-content">
+          <svg class="gemini-spin-icon" width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
+            <path d="M12 2l2.4 7.2L22 12l-7.6 2.8L12 22l-2.4-7.2L2 12l7.6-2.8z"/>
+          </svg>
+          <span>Gemini анализирует контекст и сопоставляет с расписанием 5108...</span>
+        </div>
+      </div>
+
+      <!-- Success Result Box -->
+      <div id="gemini-result-card" class="gemini-success-box" style="display: none;"></div>
+    </div>
+  </div>
+
+  <!-- ==================== LAB SUMMARY MODAL ==================== -->
+  <div id="lab-summary-overlay" class="modal-backdrop">
+    <div class="modal-card gemini-lab-card" id="lab-summary-card">
+      <div class="modal-header">
+        <div class="gemini-header-brand">
+          <span class="gemini-icon-pill">✨ Gemini AI</span>
+          <h3 class="modal-title" id="lab-summary-title">Шпаргалка к лабораторной</h3>
+        </div>
+        <button id="lab-summary-close-btn" class="modal-close-btn" aria-label="Закрыть">&times;</button>
+      </div>
+      <div class="modal-body" id="lab-summary-body">
+        <div class="loader-skeleton">
+          <div class="skeleton-line" style="width: 60%"></div>
+          <div class="skeleton-line" style="width: 90%"></div>
+          <div class="skeleton-line" style="width: 75%"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Global Toast Notification Banner -->
+  <div id="toast" class="toast"></div>
+
+  <script src="/static/app.js?v=2.0"></script>
+</body>
+</html>
