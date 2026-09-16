@@ -4,6 +4,45 @@
  */
 
 const API_BASE = '';
+const AUTH_TOKEN_KEY = 'kai_app_auth_token';
+
+function getAuthToken() {
+  return localStorage.getItem(AUTH_TOKEN_KEY) || '';
+}
+
+function setAuthToken(token) {
+  if (token) {
+    localStorage.setItem(AUTH_TOKEN_KEY, token.trim());
+  }
+}
+
+function clearAuthToken() {
+  localStorage.removeItem(AUTH_TOKEN_KEY);
+}
+
+function getDownloadUrl(url) {
+  const token = getAuthToken();
+  if (!token) return url;
+  const separator = url.includes('?') ? '&' : '?';
+  return url + separator + 'token=' + encodeURIComponent(token);
+}
+
+async function apiFetch(url, options = {}) {
+  const token = getAuthToken();
+  const headers = new Headers(options.headers || {});
+  if (token) {
+    headers.set('Authorization', `Bearer ${token}`);
+    headers.set('X-App-Token', token);
+  }
+
+  const response = await fetch(url, { ...options, headers });
+  if (response.status === 401) {
+    clearAuthToken();
+    showAuthModal(true);
+    throw new Error('Неавторизованный доступ');
+  }
+  return response;
+}
 
 const state = {
   currentTab: 'focus',          // 'focus' | 'schedule' | 'tasks'
@@ -56,6 +95,105 @@ if ('serviceWorker' in navigator) {
 }
 
 // -------------------------------------------------------------
+// PIN / Passcode Authentication Modal
+// -------------------------------------------------------------
+function showAuthModal(isExpired = false) {
+  const overlay = document.getElementById('auth-overlay');
+  const errorMsg = document.getElementById('auth-error-msg');
+  const tokenInput = document.getElementById('auth-token-input');
+  if (!overlay) return;
+
+  if (errorMsg) {
+    if (isExpired) {
+      errorMsg.textContent = 'Ключ доступа устарел или неверен. Введите ключ снова.';
+      errorMsg.style.display = 'block';
+    } else {
+      errorMsg.style.display = 'none';
+      errorMsg.textContent = '';
+    }
+  }
+  if (tokenInput) {
+    tokenInput.value = '';
+    setTimeout(() => tokenInput.focus(), 150);
+  }
+  overlay.style.display = 'flex';
+}
+
+function hideAuthModal() {
+  const overlay = document.getElementById('auth-overlay');
+  if (overlay) overlay.style.display = 'none';
+}
+
+function setupAuthModalEvents() {
+  const form = document.getElementById('auth-form');
+  const tokenInput = document.getElementById('auth-token-input');
+  const errorMsg = document.getElementById('auth-error-msg');
+  const toggleBtn = document.getElementById('auth-toggle-visibility-btn');
+  const submitBtn = document.getElementById('auth-submit-btn');
+
+  if (toggleBtn && tokenInput) {
+    toggleBtn.addEventListener('click', () => {
+      const isPwd = tokenInput.type === 'password';
+      tokenInput.type = isPwd ? 'text' : 'password';
+    });
+  }
+
+  if (form) {
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const val = tokenInput ? tokenInput.value.trim() : '';
+      if (!val) {
+        if (errorMsg) {
+          errorMsg.textContent = 'Пожалуйста, введите ключ доступа';
+          errorMsg.style.display = 'block';
+        }
+        return;
+      }
+
+      if (submitBtn) submitBtn.disabled = true;
+      if (errorMsg) errorMsg.style.display = 'none';
+
+      try {
+        // Verify token against /api/stats
+        const res = await fetch('/api/stats', {
+          headers: {
+            'Authorization': `Bearer ${val}`,
+            'X-App-Token': val
+          }
+        });
+
+        if (res.status === 401) {
+          if (errorMsg) {
+            errorMsg.textContent = 'Неверный ключ доступа. Попробуйте еще раз.';
+            errorMsg.style.display = 'block';
+          }
+          return;
+        }
+
+        if (!res.ok) {
+          throw new Error('Ошибка сервера: ' + res.status);
+        }
+
+        // Token valid!
+        setAuthToken(val);
+        hideAuthModal();
+        showToast('✅ Успешный вход в систему!');
+        await initAppData();
+
+      } catch (err) {
+        console.error('Auth verification error:', err);
+        if (errorMsg) {
+          errorMsg.textContent = 'Ошибка проверки: ' + err.message;
+          errorMsg.style.display = 'block';
+        }
+      } finally {
+        if (submitBtn) submitBtn.disabled = false;
+      }
+    });
+  }
+}
+
+// -------------------------------------------------------------
 // App Initialization
 // -------------------------------------------------------------
 document.addEventListener('DOMContentLoaded', () => {
@@ -66,19 +204,31 @@ document.addEventListener('DOMContentLoaded', () => {
   setupTopBarEvents();
   setupSyncEvents();
   setupGeminiEvents();
-  initAppData();
+  setupAuthModalEvents();
+
+  const token = getAuthToken();
+  if (!token) {
+    showAuthModal(false);
+  } else {
+    initAppData();
+  }
+
   setInterval(updateLiveLessonStatus, 30000);
 });
 
 async function initAppData() {
   updateCurrentDateDisplay();
-  await Promise.all([
-    loadTasksData(),
-    loadScheduleData(),
-    loadTodayScheduleForLive(),
-    loadStatsData()
-  ]);
-  renderFocusView();
+  try {
+    await Promise.all([
+      loadTasksData(),
+      loadScheduleData(),
+      loadTodayScheduleForLive(),
+      loadStatsData()
+    ]);
+    renderFocusView();
+  } catch (err) {
+    console.warn('initAppData interrupted (likely 401):', err);
+  }
 }
 
 // -------------------------------------------------------------
@@ -286,7 +436,7 @@ async function loadTodayScheduleForLive() {
     return;
   }
   try {
-    const res = await fetch(API_BASE + '/api/schedule?day=' + day + '&week=' + state.scheduleParity);
+    const res = await apiFetch(API_BASE + '/api/schedule?day=' + day + '&week=' + state.scheduleParity);
     if (res.ok) {
       const data = await res.json();
       state.todaySchedule = data.lessons || [];
@@ -515,7 +665,7 @@ async function loadScheduleData() {
   container.innerHTML = '<div class="loader-skeleton"><div class="skeleton-line" style="width: 50%"></div><div class="skeleton-line" style="width: 80%"></div><div class="skeleton-line" style="width: 65%"></div></div>';
 
   try {
-    const res = await fetch(API_BASE + '/api/schedule?day=' + state.scheduleDay + '&week=' + state.scheduleParity);
+    const res = await apiFetch(API_BASE + '/api/schedule?day=' + state.scheduleDay + '&week=' + state.scheduleParity);
     if (!res.ok) throw new Error('Schedule API error');
     const data = await res.json();
     renderTimeline(data.lessons || []);
@@ -657,8 +807,8 @@ function setupTasksEvents() {
 async function loadTasksData() {
   try {
     const [tasksRes, subjRes] = await Promise.all([
-      fetch(API_BASE + '/api/tasks'),
-      fetch(API_BASE + '/api/subjects')
+      apiFetch(API_BASE + '/api/tasks'),
+      apiFetch(API_BASE + '/api/subjects')
     ]);
     if (tasksRes.ok) state.tasks = await tasksRes.json();
     if (subjRes.ok) state.subjects = await subjRes.json();
@@ -671,7 +821,7 @@ async function loadTasksData() {
 
 async function loadStatsData() {
   try {
-    const res = await fetch(API_BASE + '/api/stats');
+    const res = await apiFetch(API_BASE + '/api/stats');
     if (res.ok) state.stats = await res.json();
   } catch (e) {
     console.error('Failed to load stats:', e);
@@ -834,7 +984,7 @@ function renderActionableTaskRow(task) {
     if (task.attachments && task.attachments.length > 1) {
       fileBtns = task.attachments
         .map((att) => {
-          const dlUrl = att.download_url || (API_BASE + '/api/tasks/' + task.id + '/download');
+          const dlUrl = getDownloadUrl(att.download_url || (API_BASE + '/api/tasks/' + task.id + '/download'));
           return '<a href="' + dlUrl + '" class="btn-file-link download-btn" download title="Прямое скачивание через бэкенд">' +
             '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>' +
             '<span>Скачать: ' + escapeHtml(att.name || 'Файл') + '</span>' +
@@ -843,7 +993,7 @@ function renderActionableTaskRow(task) {
         .join('');
     } else {
       const fileName = task.file_name || (task.attachments && task.attachments[0] ? task.attachments[0].name : 'Файл');
-      const dlUrl = API_BASE + '/api/tasks/' + task.id + '/download';
+      const dlUrl = getDownloadUrl(API_BASE + '/api/tasks/' + task.id + '/download');
       fileBtns = '<a href="' + dlUrl + '" class="btn-file-link download-btn" download title="Прямое скачивание через бэкенд">' +
         '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>' +
         '<span>Скачать: ' + escapeHtml(fileName) + '</span>' +
@@ -871,7 +1021,7 @@ function renderActionableTaskRow(task) {
 
 function renderMaterialDocRow(task) {
   const hasFiles = Boolean(task.file_url || (task.attachments && task.attachments.length > 0));
-  const dlUrl = API_BASE + '/api/tasks/' + task.id + '/download';
+  const dlUrl = getDownloadUrl(API_BASE + '/api/tasks/' + task.id + '/download');
   const bbUrl = task.external_url || task.bb_course_url || 'https://bb.kai.ru';
 
   const geminiDocBtn = '<button class="doc-open-btn btn-gemini-summary" data-task-id="' + task.id + '" title="✨ Быстрый AI-разбор">' +
@@ -946,7 +1096,7 @@ async function handleTaskToggle(taskId) {
   );
 
   try {
-    const res = await fetch(API_BASE + '/api/tasks/' + taskId + '/toggle', { method: 'POST' });
+    const res = await apiFetch(API_BASE + '/api/tasks/' + taskId + '/toggle', { method: 'POST' });
     if (!res.ok) throw new Error('Failed to toggle status');
     const updated = await res.json();
     task.status = updated.status;
@@ -977,7 +1127,7 @@ function setupSyncEvents() {
       showToast('Запущен сбор заданий с bb.kai.ru...');
 
       try {
-        const res = await fetch(API_BASE + '/api/sync-bb', { method: 'POST' });
+        const res = await apiFetch(API_BASE + '/api/sync-bb', { method: 'POST' });
         const data = await res.json();
         showToast(data.message || 'Синхронизация запущена в фоне');
 
@@ -1108,7 +1258,7 @@ function setupGeminiEvents() {
     });
   }
 
-  // Parse task with Gemini
+  // Parse task with Gemini (Preview & Confirm Flow)
   if (geminiSubmitBtn) {
     geminiSubmitBtn.addEventListener('click', async () => {
       const text = geminiText ? geminiText.value.trim() : '';
@@ -1122,7 +1272,7 @@ function setupGeminiEvents() {
       geminiSubmitBtn.disabled = true;
 
       try {
-        const res = await fetch(API_BASE + '/api/ai/parse-task', {
+        const res = await apiFetch(API_BASE + '/api/ai/parse-task', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ text: text })
@@ -1133,48 +1283,139 @@ function setupGeminiEvents() {
           throw new Error(errData.detail || 'Ошибка AI обработки');
         }
 
-        const task = await res.json();
+        const taskPreview = await res.json();
 
-        // Render result box
+        // Render preview card with confirmation buttons
         if (geminiResult) {
           let reqHtml = '';
           let reqText = '';
-          if (task.requirements) {
-            if (Array.isArray(task.requirements)) {
-              reqText = task.requirements.join(', ');
+          if (taskPreview.requirements) {
+            if (Array.isArray(taskPreview.requirements)) {
+              reqText = taskPreview.requirements.join(', ');
             } else {
-              reqText = String(task.requirements);
+              reqText = String(taskPreview.requirements);
             }
           }
           if (reqText.trim()) {
-            reqHtml = '<div style="margin-top: 8px; font-size: 0.8rem; color: var(--text-dim);">' +
-              '<strong>Требования:</strong> ' + escapeHtml(reqText.trim()) +
+            reqHtml = '<div class="gemini-preview-reqs">' +
+              '<strong>📝 Требования:</strong> ' + escapeHtml(reqText.trim()) +
             '</div>';
           }
 
-          geminiResult.innerHTML = '<div class="gemini-success-header">' +
-              '<svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2l2.4 7.2L22 12l-7.6 2.8L12 22l-2.4-7.2L2 12l7.6-2.8z"/></svg>' +
-              '<span>✨ Задача создана и сохранена в базу!</span>' +
-            '</div>' +
-            '<div class="gemini-success-body">' +
-              '<div style="font-weight: 700; color: var(--text-main); font-size: 0.95rem;">' + escapeHtml(task.title) + '</div>' +
-              '<div style="display: flex; gap: 6px; margin-top: 6px; flex-wrap: wrap;">' +
-                '<span class="gemini-success-tag">' + escapeHtml(task.subject_name) + '</span>' +
-                '<span class="gemini-success-tag" style="background: rgba(56, 189, 248, 0.2); color: #38bdf8;">' + escapeHtml(task.task_type || 'Задание') + '</span>' +
-                (task.deadline ? '<span class="gemini-success-tag" style="background: rgba(248, 113, 113, 0.2); color: #f87171;">' + escapeHtml(task.deadline) + '</span>' : '') +
+          let deadlineDisplay = '';
+          if (taskPreview.deadline_iso) {
+            try {
+              const d = new Date(taskPreview.deadline_iso);
+              deadlineDisplay = d.toLocaleString('ru-RU', {
+                day: 'numeric',
+                month: 'long',
+                hour: '2-digit',
+                minute: '2-digit'
+              });
+            } catch (e) {
+              deadlineDisplay = taskPreview.deadline_raw || '';
+            }
+          } else if (taskPreview.deadline_raw) {
+            deadlineDisplay = taskPreview.deadline_raw;
+          }
+
+          const deadlineChip = deadlineDisplay
+            ? '<span class="gemini-preview-tag gemini-tag-coral">⏰ ' + escapeHtml(deadlineDisplay) + '</span>'
+            : '';
+
+          geminiResult.innerHTML = '<div class="gemini-preview-card">' +
+              '<div class="gemini-preview-header">' +
+                '<svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2l2.4 7.2L22 12l-7.6 2.8L12 22l-2.4-7.2L2 12l7.6-2.8z"/></svg>' +
+                '<span>Предпросмотр распознанной задачи</span>' +
+              '</div>' +
+              '<div class="gemini-preview-title">' + escapeHtml(taskPreview.title) + '</div>' +
+              '<div class="gemini-preview-tags">' +
+                '<span class="gemini-preview-tag">' + escapeHtml(taskPreview.subject_name) + '</span>' +
+                '<span class="gemini-preview-tag gemini-tag-blue">' + escapeHtml(taskPreview.task_type || 'Задание') + '</span>' +
+                deadlineChip +
               '</div>' +
               reqHtml +
+              '<div class="gemini-actions-row">' +
+                '<button id="gemini-confirm-btn" class="gemini-action-btn gemini-confirm-btn">' +
+                  '<span>✅ Подтвердить и сохранить</span>' +
+                '</button>' +
+                '<button id="gemini-cancel-btn" class="gemini-action-btn gemini-cancel-btn">' +
+                  '<span>❌ Отмена</span>' +
+                '</button>' +
+              '</div>' +
             '</div>';
           geminiResult.style.display = 'block';
+
+          // Wire confirmation buttons
+          const confirmBtn = document.getElementById('gemini-confirm-btn');
+          const cancelBtn = document.getElementById('gemini-cancel-btn');
+
+          if (cancelBtn) {
+            cancelBtn.addEventListener('click', () => {
+              geminiResult.style.display = 'none';
+              geminiResult.innerHTML = '';
+              showToast('Создание задачи отменено');
+            });
+          }
+
+          if (confirmBtn) {
+            confirmBtn.addEventListener('click', async () => {
+              confirmBtn.disabled = true;
+              confirmBtn.textContent = 'Сохранение...';
+
+              try {
+                const saveRes = await apiFetch(API_BASE + '/api/tasks', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({
+                    subject_name: taskPreview.subject_name,
+                    title: taskPreview.title,
+                    task_type: taskPreview.task_type,
+                    deadline: taskPreview.deadline_iso,
+                    deadline_raw: taskPreview.deadline_raw,
+                    requirements: reqText.trim() || undefined,
+                    source: 'manual_ai'
+                  })
+                });
+
+                if (!saveRes.ok) {
+                  const errData = await saveRes.json().catch(() => ({}));
+                  throw new Error(errData.detail || 'Не удалось сохранить задачу');
+                }
+
+                const savedTask = await saveRes.json();
+
+                geminiResult.innerHTML = '<div class="gemini-success-box">' +
+                    '<div class="gemini-success-header">' +
+                      '<svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2l2.4 7.2L22 12l-7.6 2.8L12 22l-2.4-7.2L2 12l7.6-2.8z"/></svg>' +
+                      '<span>✨ Задача подтверждена и сохранена!</span>' +
+                    '</div>' +
+                    '<div class="gemini-success-body">' +
+                      '<div style="font-weight: 700; color: var(--text-main); font-size: 0.95rem;">' + escapeHtml(savedTask.title) + '</div>' +
+                      '<div style="display: flex; gap: 6px; margin-top: 6px; flex-wrap: wrap;">' +
+                        '<span class="gemini-success-tag">' + escapeHtml(savedTask.subject_name) + '</span>' +
+                        '<span class="gemini-success-tag" style="background: rgba(56, 189, 248, 0.2); color: #38bdf8;">' + escapeHtml(savedTask.task_type || 'Задание') + '</span>' +
+                      '</div>' +
+                    '</div>' +
+                  '</div>';
+
+                if (geminiText) geminiText.value = '';
+                showToast('✨ Задача успешно создана!');
+
+                // Refresh app data
+                await Promise.all([loadTasksData(), loadStatsData()]);
+                renderFocusView();
+                if (state.currentTab === 'tasks') renderTasksMainView();
+
+              } catch (saveErr) {
+                console.error('Save task error:', saveErr);
+                showToast('⚠️ Ошибка сохранения: ' + saveErr.message);
+                confirmBtn.disabled = false;
+                confirmBtn.textContent = '✅ Попробовать снова';
+              }
+            });
+          }
         }
-
-        if (geminiText) geminiText.value = '';
-        showToast('✨ Задача успешно создана!');
-
-        // Refresh state
-        await Promise.all([loadTasksData(), loadStatsData()]);
-        renderFocusView();
-        if (state.currentTab === 'tasks') renderTasksMainView();
 
       } catch (err) {
         console.error('Gemini parse failed:', err);
@@ -1239,7 +1480,7 @@ async function openLabSummaryModal(taskId) {
   labOverlay.classList.add('active');
 
   try {
-    const res = await fetch(API_BASE + '/api/ai/summarize-task/' + taskId, { method: 'POST' });
+    const res = await apiFetch(API_BASE + '/api/ai/summarize-task/' + taskId, { method: 'POST' });
     if (!res.ok) {
       const err = await res.json().catch(() => ({}));
       throw new Error(err.detail || 'Не удалось сгенерировать разбор');

@@ -7,12 +7,24 @@ import mimetypes
 import urllib.parse
 from datetime import date, datetime, timedelta
 from pathlib import Path
+import secrets
 from typing import Any, Dict, List, Optional
 
 import httpx
-from fastapi import FastAPI, HTTPException, Query, BackgroundTasks
+from fastapi import (
+    APIRouter,
+    BackgroundTasks,
+    Depends,
+    FastAPI,
+    Header,
+    HTTPException,
+    Query,
+    Request,
+    Security,
+)
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse, Response, StreamingResponse
+from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
@@ -29,7 +41,7 @@ from database.crud import (
 )
 from database.models import Subject, Task
 from services.bb_scraper import BlackboardScraper
-from services.gemini_service import GeminiService
+from services.gemini_service import GeminiService, resolve_relative_deadline
 from services.kai_api import (
     KaiApiClient,
     Lesson,
@@ -46,14 +58,64 @@ app = FastAPI(
     version="1.0.0",
 )
 
-# Enable CORS for mobile browsers and PWA
+# Restrict CORS to trusted origins & local tunnels
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=[
+        "http://localhost",
+        "http://localhost:8000",
+        "http://localhost:3000",
+        "http://127.0.0.1",
+        "http://127.0.0.1:8000",
+        "https://194-226-123-205.sslip.io",
+    ],
+    allow_origin_regex=r"^https?://(localhost|127\.0\.0\.1|.*\.sslip\.io|.*\.lhr\.life|.*\.trycloudflare\.com)(:\d+)?$",
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+security_bearer = HTTPBearer(auto_error=False)
+
+
+async def verify_app_token(
+    request: Request,
+    auth: Optional[HTTPAuthorizationCredentials] = Security(security_bearer),
+    x_app_token: Optional[str] = Header(None, alias="X-App-Token"),
+    token: Optional[str] = Query(None, alias="token"),
+):
+    """
+    Validate application authentication token.
+    Supports Authorization: Bearer <token>, X-App-Token: <token>, and ?token=<token>
+    """
+    expected = settings.app_auth_token
+    if not expected:
+        return True
+
+    supplied_token = None
+    if auth and auth.credentials:
+        supplied_token = auth.credentials.strip()
+    elif x_app_token:
+        supplied_token = x_app_token.strip()
+    elif token:
+        supplied_token = token.strip()
+
+    if not supplied_token or not secrets.compare_digest(supplied_token, expected):
+        raise HTTPException(
+            status_code=401,
+            detail="Неавторизованный доступ: неверный или отсутствующий токен авторизации",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+    return True
+
+
+api_router = APIRouter(prefix="/api", dependencies=[Depends(verify_app_token)])
+
+
+@app.get("/api/health")
+async def health_check():
+    """Public health check endpoint."""
+    return {"status": "ok", "app": "KAI Assistant 5108"}
 
 STATIC_DIR = Path(__file__).resolve().parent.parent / "static"
 REAL_SCHEDULE_FILE = Path(__file__).resolve().parent.parent / "real_schedule_5108.json"
@@ -144,7 +206,7 @@ async def startup_event():
 # REST API ENDPOINTS
 # -------------------------------------------------------------
 
-@app.get("/api/stats")
+@api_router.get("/stats")
 async def get_stats():
     """Overall semester progress stats."""
     async with async_session() as session:
@@ -165,7 +227,7 @@ async def get_stats():
     }
 
 
-@app.get("/api/subjects")
+@api_router.get("/subjects")
 async def list_subjects():
     """Subjects list with task counts and progress percentages."""
     async with async_session() as session:
@@ -220,7 +282,7 @@ BB_COURSE_MAP = {
 }
 
 
-@app.get("/api/tasks")
+@api_router.get("/tasks")
 async def list_tasks(
     subject_id: Optional[int] = Query(None, description="Filter by subject ID"),
     status: Optional[str] = Query("all", description="Filter by status: todo, done, all"),
@@ -269,7 +331,7 @@ async def list_tasks(
     return response_items
 
 
-@app.get("/api/tasks/{task_id}/download")
+@api_router.get("/tasks/{task_id}/download")
 async def download_task_file(
     task_id: int,
     idx: int = Query(0, description="Attachment index if task has multiple files"),
@@ -401,7 +463,7 @@ async def download_task_file(
     return Response(content=resp.content, media_type=clean_media_type, headers=resp_headers)
 
 
-@app.post("/api/tasks/{task_id}/toggle")
+@api_router.post("/tasks/{task_id}/toggle")
 async def toggle_task_status(task_id: int):
     """Toggle task status between todo and done."""
     async with async_session() as session:
@@ -426,7 +488,7 @@ async def toggle_task_status(task_id: int):
     }
 
 
-@app.get("/api/schedule")
+@api_router.get("/schedule")
 async def get_schedule(
     day: Optional[int] = Query(None, description="Weekday 1..6 (1=Mon, 6=Sat)"),
     week: Optional[str] = Query(None, description="Week parity: even/odd or чет/нечет"),
@@ -495,7 +557,7 @@ async def get_schedule(
     }
 
 
-@app.get("/api/schedule/week")
+@api_router.get("/schedule/week")
 async def get_schedule_week(
     week: Optional[str] = Query(None, description="Week parity: even/odd or чет/нечет")
 ):
@@ -579,7 +641,7 @@ async def _run_bb_sync_worker():
         _is_syncing_bb = False
 
 
-@app.post("/api/sync-bb")
+@api_router.post("/sync-bb")
 async def trigger_bb_sync(background_tasks: BackgroundTasks):
     """Trigger background synchronization with Blackboard."""
     global _is_syncing_bb
@@ -602,12 +664,23 @@ class AiParseTaskRequest(BaseModel):
     text: str
 
 
+class CreateTaskRequest(BaseModel):
+    subject_name: str
+    title: str
+    task_type: str = "задание"
+    deadline: Optional[str] = None  # ISO format string or raw phrase
+    deadline_raw: Optional[str] = None
+    requirements: Optional[str] = None
+    details: Optional[str] = None
+    source: str = "manual_ai"
+
+
 _task_summaries_cache: Dict[int, Dict[str, Any]] = {}
 
 
-@app.post("/api/ai/parse-task")
+@api_router.post("/ai/parse-task")
 async def ai_parse_task(req: AiParseTaskRequest):
-    """Recognize task from free-form natural language text using Google Gemini AI and save to SQLite."""
+    """Recognize task from free-form natural language text using Google Gemini AI (preview only, does not save to DB)."""
     if not req.text or not req.text.strip():
         raise HTTPException(status_code=400, detail="Текст задачи не может быть пустым")
 
@@ -636,28 +709,59 @@ async def ai_parse_task(req: AiParseTaskRequest):
     title = parsed.get("title") or req.text.strip()[:60]
     task_type = parsed.get("task_type") or "задание"
     deadline_raw = parsed.get("deadline_raw")
+    deadline_iso = parsed.get("deadline_iso")
     requirements = parsed.get("requirements")
 
-    # Format composite details
-    details_parts = []
-    if deadline_raw:
-        details_parts.append(f"⏰ Срок: {deadline_raw}")
-    if requirements:
-        details_parts.append(f"📝 Требования: {requirements}")
-    details_parts.append(f"💬 Исходный текст: {req.text.strip()}")
-    details = "\n\n".join(details_parts)
+    return {
+        "subject_name": subj_name,
+        "title": title,
+        "task_type": task_type,
+        "deadline_raw": deadline_raw,
+        "deadline_iso": deadline_iso,
+        "requirements": requirements,
+        "original_text": req.text.strip(),
+    }
 
-    # 2. Persist in database
+
+@api_router.post("/tasks")
+async def create_new_task(req: CreateTaskRequest):
+    """Persist confirmed task to SQLite database."""
+    if not req.title or not req.title.strip():
+        raise HTTPException(status_code=400, detail="Название задачи не может быть пустым")
+    if not req.subject_name or not req.subject_name.strip():
+        raise HTTPException(status_code=400, detail="Название предмета не может быть пустым")
+
+    deadline_dt: Optional[datetime] = None
+    if req.deadline:
+        try:
+            deadline_dt = datetime.fromisoformat(req.deadline)
+        except Exception:
+            deadline_dt = resolve_relative_deadline(req.deadline)
+    elif req.deadline_raw:
+        deadline_dt = resolve_relative_deadline(req.deadline_raw)
+
+    details = req.details or ""
+    if not details:
+        details_parts = []
+        if req.deadline_raw:
+            details_parts.append(f"⏰ Срок: {req.deadline_raw}")
+        elif deadline_dt:
+            details_parts.append(f"⏰ Срок: {deadline_dt.strftime('%d.%m.%Y %H:%M')}")
+        if req.requirements:
+            details_parts.append(f"📝 Требования: {req.requirements}")
+        details_parts.append("Источник: Создано через Gemini AI")
+        details = "\n\n".join(details_parts)
+
     async with async_session() as session:
-        subject = await get_or_create_subject(session, name=subj_name)
+        subject = await get_or_create_subject(session, name=req.subject_name.strip())
         new_task = await create_task(
             session=session,
             subject_id=subject.id,
-            title=title,
-            task_type=task_type,
-            deadline=None,
+            title=req.title.strip(),
+            task_type=req.task_type.strip(),
+            deadline=deadline_dt,
             status="todo",
-            source="manual_ai",
+            source=req.source,
             details=details,
         )
 
@@ -667,16 +771,15 @@ async def ai_parse_task(req: AiParseTaskRequest):
         "subject_name": subject.name,
         "title": new_task.title,
         "task_type": new_task.task_type,
-        "deadline": deadline_raw,
-        "requirements": requirements or [],
+        "deadline": new_task.deadline.isoformat() if new_task.deadline else None,
+        "deadline_raw": req.deadline_raw,
         "status": new_task.status,
         "source": new_task.source,
         "details": new_task.details,
-        "parsed_metadata": parsed,
     }
 
 
-@app.post("/api/ai/summarize-task/{task_id}")
+@api_router.post("/ai/summarize-task/{task_id}")
 async def ai_summarize_task(task_id: int):
     """Generate concise student lab cheat-sheet using Google Gemini AI."""
     if task_id in _task_summaries_cache:
@@ -704,6 +807,9 @@ async def ai_summarize_task(task_id: int):
     except Exception as e:
         logger.error("Gemini summarize_lab_work error: %s", e)
         raise HTTPException(status_code=502, detail=f"Ошибка Gemini AI: {e}")
+
+
+app.include_router(api_router)
 
 
 # -------------------------------------------------------------

@@ -6,15 +6,129 @@ Provides structured natural language task parsing and automated lab work cheat-s
 from __future__ import annotations
 
 import logging
+import re
+from datetime import datetime, date, time, timedelta
 from typing import Any, Dict, List, Optional
 
-from google import genai
-from google.genai import types
 from pydantic import BaseModel, Field
+
+try:
+    from google import genai
+    from google.genai import types
+except ImportError:
+    genai = None  # type: ignore
+    types = None  # type: ignore
 
 from core.config import settings
 
 logger = logging.getLogger("kai_assistant.gemini")
+
+try:
+    from zoneinfo import ZoneInfo
+    MSK_TZ = ZoneInfo("Europe/Moscow")
+except Exception:
+    import datetime as _dt
+    MSK_TZ = _dt.timezone(_dt.timedelta(hours=3))
+
+WEEKDAYS_STEMS = [
+    ("понедельн", 0), ("пн", 0),
+    ("вторник", 1), ("вт", 1),
+    ("сред", 2), ("ср", 2),
+    ("четверг", 3), ("чт", 3),
+    ("пятниц", 4), ("пт", 4),
+    ("суббот", 5), ("сб", 5),
+    ("воскресен", 6), ("вс", 6),
+]
+
+MONTHS_MAP = {
+    "январ": 1, "феврал": 2, "март": 3, "апрел": 4,
+    "ма": 5, "июн": 6, "июл": 7, "август": 8,
+    "сентябр": 9, "октябр": 10, "ноябр": 11, "декабр": 12,
+}
+
+
+def resolve_relative_deadline(
+    deadline_raw: Optional[str],
+    base_dt: Optional[datetime] = None
+) -> Optional[datetime]:
+    """
+    Resolve Russian natural language deadline phrase to concrete datetime in Europe/Moscow timezone.
+    Examples:
+      - 'к следующей среде' -> next week's Wednesday at 18:00
+      - 'до пятницы' -> upcoming Friday at 18:00
+      - 'завтра' -> tomorrow at 23:59
+      - 'через 2 дня' -> base_dt + 2 days at 18:00
+      - 'до 25 октября' -> 25th of October at 18:00
+    """
+    if not deadline_raw or not deadline_raw.strip():
+        return None
+
+    raw = deadline_raw.strip().lower()
+
+    if base_dt is None:
+        base_dt = datetime.now(MSK_TZ)
+    elif base_dt.tzinfo is None:
+        base_dt = base_dt.replace(tzinfo=MSK_TZ)
+
+    # 1. Direct ISO format check
+    try:
+        if re.match(r"^\d{4}-\d{2}-\d{2}", raw):
+            parsed_iso = datetime.fromisoformat(raw)
+            if parsed_iso.tzinfo is None:
+                parsed_iso = parsed_iso.replace(tzinfo=MSK_TZ)
+            return parsed_iso
+    except Exception:
+        pass
+
+    # 2. Today / tomorrow / day after tomorrow
+    if "сегодня" in raw:
+        return datetime.combine(base_dt.date(), time(23, 59, 0), tzinfo=MSK_TZ)
+    if "послезавтра" in raw:
+        return datetime.combine(base_dt.date() + timedelta(days=2), time(23, 59, 0), tzinfo=MSK_TZ)
+    if "завтра" in raw:
+        return datetime.combine(base_dt.date() + timedelta(days=1), time(23, 59, 0), tzinfo=MSK_TZ)
+
+    # 3. Relative days ("через N дней/дня/суток")
+    days_match = re.search(r"через\s+(\d+)\s*(дн|ден|сут)", raw)
+    if days_match:
+        n_days = int(days_match.group(1))
+        return datetime.combine(base_dt.date() + timedelta(days=n_days), time(18, 0, 0), tzinfo=MSK_TZ)
+
+    # 4. Relative weeks ("через N недель/недели")
+    weeks_match = re.search(r"через\s+(\d+)\s*(нед)", raw)
+    if weeks_match:
+        n_weeks = int(weeks_match.group(1))
+        return datetime.combine(base_dt.date() + timedelta(weeks=n_weeks), time(18, 0, 0), tzinfo=MSK_TZ)
+
+    # 5. Month dates ("до 25 октября", "к 12 ноября")
+    for m_stem, m_num in MONTHS_MAP.items():
+        date_pattern = rf"(\d{{1,2}})\s+{m_stem}[а-я]*"
+        dm = re.search(date_pattern, raw)
+        if dm:
+            day = int(dm.group(1))
+            year = base_dt.year
+            if m_num < base_dt.month or (m_num == base_dt.month and day < base_dt.day):
+                year += 1
+            try:
+                return datetime(year, m_num, day, 18, 0, 0, tzinfo=MSK_TZ)
+            except ValueError:
+                pass
+
+    # 6. Weekdays ("к следующей среде", "до пятницы", "во вторник")
+    is_next_week = any(w in raw for w in ["следующ", "след."])
+    curr_w = base_dt.weekday()
+    for w_stem, w_idx in WEEKDAYS_STEMS:
+        if w_stem in raw:
+            if is_next_week:
+                days_ahead = (w_idx - curr_w) % 7 + 7
+            else:
+                days_ahead = w_idx - curr_w
+                if days_ahead <= 0:
+                    days_ahead += 7
+            target_date = base_dt.date() + timedelta(days=days_ahead)
+            return datetime.combine(target_date, time(18, 0, 0), tzinfo=MSK_TZ)
+
+    return None
 
 
 class ParsedTask(BaseModel):
@@ -31,6 +145,10 @@ class ParsedTask(BaseModel):
     deadline_raw: Optional[str] = Field(
         default=None,
         description="Срок выполнения в исходном виде из текста (например, 'к следующей среде', 'до 25 мая', 'на следующей неделе')"
+    )
+    deadline_iso: Optional[str] = Field(
+        default=None,
+        description="Вычисленная точная дата и время дедлайна в формате YYYY-MM-DDTHH:MM:SS, если возможно определить относительно текущей даты"
     )
     requirements: Optional[str] = Field(
         default=None,
@@ -120,9 +238,12 @@ class GeminiService:
         """
         Extract structured task metadata from natural student language or forwarded chat messages.
         """
+        now_msk = datetime.now(MSK_TZ)
+        now_str = now_msk.strftime("%Y-%m-%d (%A, %H:%M MSK)")
         subjects_formatted = ", ".join(f"'{s}'" for s in available_subjects)
         prompt = (
             "Ты — умный студенческий AI-ассистент группы 5108 (ИРЭФ-ЦТ, КАИ).\n"
+            f"Текущая дата и время: {now_str}.\n"
             "Твоя задача — извлечь параметры учебной задачи из сообщения студента или старосты.\n\n"
             f"Список реальных зарегистрированных предметов студента:\n[{subjects_formatted}]\n\n"
             "Инструкции:\n"
@@ -130,13 +251,19 @@ class GeminiService:
             "Если предмет не указан явно, постарайся определить по контексту или выбери наиболее подходящий.\n"
             "2. Поле 'title': сделай короткое емкое название задачи на русском языке.\n"
             "3. Поле 'task_type': выбери из 'лабораторная', 'доклад', 'конспект', 'оргвопрос', 'практическая', 'зачет', 'задание'.\n"
-            "4. Поле 'deadline_raw': извлеки срок сдачи, если он упомянут (например, 'к следующей среде', 'до пятницы').\n"
-            "5. Поле 'requirements': перечисли, что нужно подготовить (отчет, титульный лист, презентацию и т.д.).\n\n"
+            "4. Поле 'deadline_raw': извлеки срок сдачи в исходном виде (например, 'к следующей среде', 'до пятницы', 'через 2 дня').\n"
+            "5. Поле 'deadline_iso': вычисли точную дату и время дедлайна в формате YYYY-MM-DDTHH:MM:SS, учитывая текущую дату.\n"
+            "6. Поле 'requirements': перечисли, что нужно подготовить (отчет, титульный лист, презентацию и т.д.).\n\n"
             f"Текст сообщения студента:\n{text.strip()}"
         )
 
         parsed: ParsedTask = self._call_with_fallback(contents=prompt, response_schema=ParsedTask)
-        return parsed.model_dump()
+        res = parsed.model_dump()
+        if not res.get("deadline_iso") and res.get("deadline_raw"):
+            resolved = resolve_relative_deadline(res["deadline_raw"], base_dt=now_msk)
+            if resolved:
+                res["deadline_iso"] = resolved.isoformat()
+        return res
 
     def summarize_lab_work(
         self,

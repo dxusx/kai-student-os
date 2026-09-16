@@ -35,6 +35,8 @@ class Settings(BaseSettings):
     gemini_api_key: Optional[str] = Field(default=None, alias="GEMINI_API_KEY")
     gemini_model: str = Field(default="gemini-2.5-flash", alias="GEMINI_MODEL")
 
+    app_auth_token: str = Field(default="", alias="APP_AUTH_TOKEN")
+
     @field_validator("tg_user_id", mode="before")
     @classmethod
     def parse_optional_int(cls, v):
