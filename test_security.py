@@ -5,7 +5,7 @@ Validates:
 - 200 OK for requests authenticated via:
     * Authorization: Bearer <token>
     * X-App-Token: <token>
-    * Query parameter ?token=<token>
+- 401 Unauthorized for query parameter ?token=<token> (tokens strictly forbidden in URLs)
 - 401 Unauthorized for invalid tokens
 - Public access for /api/health and static assets
 - File download protection (/api/tasks/{id}/download)
@@ -112,18 +112,17 @@ def test_auth_via_x_app_token_header(client, x_token_headers):
     assert "total_tasks" in resp.json()
 
 
-def test_auth_via_query_token_for_downloads(client):
-    """Verify access granted via ?token=<token> for native browser file downloads."""
+def test_auth_via_query_token_strictly_rejected(client):
+    """Verify ?token=<token> is strictly rejected (401) to prevent tokens leaking in URLs."""
     token = settings.app_auth_token or "kai5108_secret_passcode_2026"
 
     # Query without token should fail with 401
     resp_no_token = client.get("/api/tasks/1/download")
     assert resp_no_token.status_code == 401
 
-    # Query with valid token should not return 401 (might be 404 or 200 depending on task existence)
-    resp_with_token = client.get(f"/api/tasks/99999/download?token={token}")
-    assert resp_with_token.status_code in (404, 200)
-    assert resp_with_token.status_code != 401
+    # Query with valid token in query params must be strictly rejected with 401
+    resp_with_token = client.get(f"/api/tasks/1/download?token={token}")
+    assert resp_with_token.status_code == 401, f"Expected 401 for ?token= query parameter, got {resp_with_token.status_code}"
 
 
 def test_date_resolver_relative_phrases():
@@ -209,8 +208,8 @@ if __name__ == "__main__":
     test_auth_via_bearer_header(c, get_auth_headers())
     print("Testing auth via X-App-Token header (200)...")
     test_auth_via_x_app_token_header(c, get_x_token_headers())
-    print("Testing auth via query token ?token= for downloads (200)...")
-    test_auth_via_query_token_for_downloads(c)
+    print("Testing auth via query token ?token= strictly rejected (401)...")
+    test_auth_via_query_token_strictly_rejected(c)
     print("Testing date resolver relative phrases...")
     test_date_resolver_relative_phrases()
     print("Testing task creation with parsed deadline datetime...")

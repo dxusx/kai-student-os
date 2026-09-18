@@ -3,271 +3,439 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-  <title>KAI Student OS 2.0</title>
+  <title>KAI Student OS</title>
   
   <!-- PWA Meta -->
-  <meta name="theme-color" content="#0d0f12">
+  <meta name="theme-color" content="#0d0f14">
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="apple-mobile-web-app-title" content="KAI Student OS">
   
   <!-- Manifest & Icons -->
-  <link rel="manifest" href="/manifest.json?v=2.0">
+  <link rel="manifest" href="/manifest.json?v=2.1">
   <link rel="icon" type="image/svg+xml" href="/static/icon.svg">
   <link rel="apple-touch-icon" href="/static/icon.svg">
 
-  <!-- Inter & Roboto Fonts -->
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet">
-
-  <link rel="stylesheet" href="/static/styles.css?v=2.0">
+  <link rel="stylesheet" href="/static/styles.css?v=2.1">
 </head>
 <body>
 
-  <!-- Top Ambient App Bar -->
-  <header class="top-bar">
+  <!-- Ambient Light Background Elements -->
+  <div class="ambient-glow ambient-glow-top" aria-hidden="true"></div>
+  <div class="ambient-glow ambient-glow-accent" aria-hidden="true"></div>
+
+  <!-- Top Glass Bar -->
+  <header class="top-bar glass-nav">
     <div class="brand">
-      <img src="/static/icon.svg" alt="КАИ Logo" class="brand-logo">
+      <div class="brand-avatar">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M22 10v6M2 10l10-5 10 5-10 5z"></path>
+          <path d="M6 12v5c3 3 9 3 12 0v-5"></path>
+        </svg>
+      </div>
       <div class="brand-info">
         <h1 class="brand-title">Student OS</h1>
-        <span class="brand-badge">5108 • 2 п/г</span>
+        <span class="brand-pill">5108 · 2 п/г</span>
       </div>
     </div>
+
+    <!-- Desktop Navigation Pills -->
+    <nav class="desktop-nav" aria-label="Основная навигация">
+      <button class="desktop-nav-btn glass-control active" data-tab="focus">Сегодня</button>
+      <button class="desktop-nav-btn glass-control" data-tab="tasks">Задания</button>
+      <button class="desktop-nav-btn glass-control" data-tab="ai">AI</button>
+      <button class="desktop-nav-btn glass-control" data-tab="more">Ещё</button>
+    </nav>
+
     <div class="top-actions">
-      <button id="parity-toggle-btn" class="parity-pill" title="Переключить четность недели">
-        <svg class="pill-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
-          <path d="M17 1l4 4-4 4"/>
-          <path d="M3 11V9a4 4 0 0 1 4-4h14"/>
-          <path d="M7 23l-4-4 4-4"/>
-          <path d="M21 13v2a4 4 0 0 1-4 4H3"/>
+      <button id="theme-toggle-btn" class="glass-icon-btn glass-control" title="Сменить тему (Светлая / Тёмная)" aria-label="Сменить тему">
+        <svg id="theme-toggle-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="5"></circle>
+          <line x1="12" y1="1" x2="12" y2="3"></line>
+          <line x1="12" y1="21" x2="12" y2="23"></line>
+          <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line>
+          <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line>
+          <line x1="1" y1="12" x2="3" y2="12"></line>
+          <line x1="21" y1="12" x2="23" y2="12"></line>
+          <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line>
+          <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line>
         </svg>
-        <span id="parity-label">ЧЕТ</span>
       </button>
-      <button id="gemini-open-btn" class="gemini-pill-btn" title="✨ Gemini AI Ассистент">
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
-          <path d="M12 2l2.4 7.2L22 12l-7.6 2.8L12 22l-2.4-7.2L2 12l7.6-2.8z"/>
-        </svg>
-        <span>✨ AI</span>
+      <button id="parity-toggle-btn" class="glass-pill glass-control" title="Переключить четность недели">
+        <span class="pill-dot"></span>
+        <span id="parity-label">Чёт</span>
       </button>
-      <button id="global-refresh-btn" class="icon-circle-btn" title="Обновить данные и очистить кэш">
-        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+      <button id="global-refresh-btn" class="glass-icon-btn glass-control" title="Обновить данные и кэш">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
           <path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"/>
         </svg>
       </button>
     </div>
   </header>
 
-  <!-- Main Scrollable App Views Container -->
+  <!-- Main Scrollable Content Container -->
   <main class="content-container">
 
-    <!-- ==================== TAB 1: ⚡ СЕГОДНЯ / ФОКУС ==================== -->
-    <section id="view-focus" class="app-view active">
+    <!-- ==================== TAB 1: СЕГОДНЯ (FOCUS) ==================== -->
+    <section id="view-focus" class="app-view active" role="region" aria-label="Сегодня">
       
-      <!-- Greeting Header -->
-      <div class="greeting-section">
-        <div class="greeting-pre">Личный кабинет студента</div>
-        <h2 class="greeting-name">Привет, Карим!</h2>
-        <div class="greeting-date" id="focus-date-label">Загрузка даты...</div>
+      <!-- 1. Current Context Header -->
+      <div class="section-intro">
+        <span class="intro-date" id="focus-date-label"></span>
+        <h1 class="intro-greeting">Привет, Карим</h1>
       </div>
 
-      <!-- Real-time Dynamic Hero Card -->
-      <div class="hero-live-card" id="hero-live-container">
-        <div class="hero-status-header">
-          <div class="status-pulse-badge" id="hero-status-badge">
-            <span class="pulse-ring"></span>
+      <!-- 1.1 Large Dynamic Live Card ("Сейчас") -->
+      <div class="liquid-card hero-live-card glass" id="hero-live-container">
+        <div class="hero-header">
+          <div class="status-pulse-capsule" id="hero-status-badge">
+            <span class="pulse-indicator"></span>
             <span class="status-label" id="hero-status-text">Определение расписания...</span>
           </div>
-          <div class="hero-time-badge" id="hero-time-slot">--:--</div>
+          <div class="hero-time-slot" id="hero-time-slot"></div>
         </div>
 
         <div class="hero-body">
           <h3 class="hero-lesson-title" id="hero-lesson-title">Проверка расписания</h3>
           <div class="hero-meta-row" id="hero-meta-row">
             <span class="hero-chip building-chip" id="hero-building-chip">КАИ</span>
-            <span class="hero-meta-text" id="hero-teacher-text">Загрузка данных...</span>
+            <span class="hero-teacher" id="hero-teacher-text">Загрузка данных...</span>
           </div>
         </div>
 
-        <div class="hero-progress-wrapper" id="hero-progress-wrapper">
-          <div class="hero-progress-bar">
-            <div class="hero-progress-fill" id="hero-progress-fill" style="width: 0%"></div>
+        <div class="hero-progress-box" id="hero-progress-wrapper" style="display: none;">
+          <div class="liquid-progress-track">
+            <div class="liquid-progress-fill" id="hero-progress-fill" style="width: 0%"></div>
           </div>
-          <div class="hero-progress-labels">
+          <div class="hero-progress-meta">
             <span id="hero-progress-time-left">Осталось: --</span>
             <span id="hero-progress-percent">0%</span>
           </div>
         </div>
       </div>
 
-      <!-- Bento Grid Section -->
-      <div class="bento-grid">
+      <!-- 2. Next Action Block -->
+      <div class="next-action-card glass-subtle" id="next-action-card">
+        <div class="next-action-badge">Следующее действие</div>
+        <div class="next-action-content">
+          <div class="next-action-info">
+            <h4 class="next-action-title" id="next-action-title">Загрузка актуальных задач...</h4>
+            <div class="next-action-sub" id="next-action-time">Проверка дедлайнов</div>
+          </div>
+          <button class="glass-action-btn glass-control next-action-cta" id="next-action-btn">
+            <span>Продолжить</span>
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M5 12h14M12 5l7 7-7 7"/>
+            </svg>
+          </button>
+        </div>
+      </div>
+
+      <!-- 3. Urgent Tasks Surface -->
+      <div class="surface-card urgent-card glass-subtle">
+        <div class="card-header-clean">
+          <div class="card-title-group">
+            <h3 class="card-title-text">Горит к сдаче</h3>
+          </div>
+          <button class="text-link-btn" onclick="switchTab('tasks')">Все задания</button>
+        </div>
+        <div class="urgent-tasks-list" id="urgent-tasks-container">
+          <div class="task-placeholder state-loading">Поиск актуальных заданий...</div>
+        </div>
+      </div>
+
+      <!-- 4. Schedule Today Peek -->
+      <div class="surface-card schedule-peek-card glass-subtle">
+        <div class="card-header-clean">
+          <div class="card-title-group">
+            <h3 class="card-title-text">Пары на сегодня</h3>
+          </div>
+          <button class="text-link-btn" onclick="switchTab('more')">Все расписание</button>
+        </div>
+        <div id="today-peek-container" class="today-peek-list">
+          <div class="task-placeholder state-loading">Загрузка пар...</div>
+        </div>
+      </div>
+
+      <!-- 5. Inline AI Composer ("Что произошло?") -->
+      <div class="liquid-glass-composer glass">
+        <div class="composer-header">
+          <div class="composer-brand">
+            <div class="composer-sparkle">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M12 2l2.4 7.2L22 12l-7.6 2.8L12 22l-2.4-7.2L2 12l7.6-2.8z"/>
+              </svg>
+            </div>
+            <span class="composer-title">Что произошло?</span>
+          </div>
+          <span class="composer-hint">Gemini AI</span>
+        </div>
         
-        <!-- Bento Tile 1: Burning Deadlines -->
-        <div class="bento-tile bento-urgent">
-          <div class="tile-header">
-            <div class="tile-title-group">
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#f87171" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
-                <path d="M8.5 14.5A2.5 2.5 0 0 0 11 12c0-1.38-.5-2-1-3-1.072-2.143-.224-4.054 2-6 .5 2.5 2 4.9 4 6.5 2 1.6 3 3.5 3 5.5a7 7 0 1 1-14 0c0-1.153.433-2.294 1-3a2.5 2.5 0 0 0 2.5 2.5z"/>
-              </svg>
-              <span>Горит к сдаче</span>
-            </div>
-            <button class="tile-link-btn" onclick="switchTab('tasks')">Все (0)</button>
-          </div>
-          <div class="urgent-tasks-list" id="urgent-tasks-container">
-            <div class="task-placeholder">Поиск актуальных заданий...</div>
-          </div>
+        <div class="composer-input-row">
+          <textarea id="home-ai-input" class="composer-textarea glass-control" rows="2" placeholder="Вставь сообщение старосты или надиктуй задачу..."></textarea>
         </div>
-
-        <!-- Bento Tile 2: Semester Progress Ring -->
-        <div class="bento-tile bento-progress">
-          <div class="tile-header">
-            <div class="tile-title-group">
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#4d82f3" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
-                <line x1="18" y1="20" x2="18" y2="10"></line>
-                <line x1="12" y1="20" x2="12" y2="4"></line>
-                <line x1="6" y1="20" x2="6" y2="14"></line>
-              </svg>
-              <span>Прогресс семестра</span>
-            </div>
-            <span class="pill-badge" id="bento-motivation-badge">В начале пути</span>
+        
+        <div class="composer-controls">
+          <div class="composer-suggestions">
+            <button class="pill-suggestion glass-control" data-prompt="К следующей среде по физике сделать отчет по лабе 2 и распечатать титульник">Лаба по физике</button>
+            <button class="pill-suggestion glass-control" data-prompt="До пятницы сдать практическую работу 3 по высшей математике">ПЗ по вышмату</button>
           </div>
-
-          <div class="progress-ring-card">
-            <div class="ring-container">
-              <svg class="ring-svg" viewBox="0 0 120 120">
-                <circle class="ring-bg" cx="60" cy="60" r="50"></circle>
-                <circle class="ring-fill" id="focus-ring-fill" cx="60" cy="60" r="50"></circle>
+          <div class="composer-actions">
+            <button id="home-ai-mic-btn" class="glass-control-btn glass-control" title="Голосовой ввод">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/>
+                <path d="M19 10v2a7 7 0 0 1-14 0v-2"/>
+                <line x1="12" y1="19" x2="12" y2="23"/>
+                <line x1="8" y1="23" x2="16" y2="23"/>
               </svg>
-              <div class="ring-text">
-                <span class="ring-percent" id="focus-ring-percent">0%</span>
-                <span class="ring-sub">сдано</span>
-              </div>
-            </div>
-            <div class="progress-stats-summary">
-              <div class="stat-mini-row">
-                <span class="stat-mini-lbl">Сдано работ:</span>
-                <span class="stat-mini-val text-mint" id="focus-stat-done">0</span>
-              </div>
-              <div class="stat-mini-row">
-                <span class="stat-mini-lbl">Осталось сдать:</span>
-                <span class="stat-mini-val text-coral" id="focus-stat-todo">0</span>
-              </div>
-              <div class="stat-mini-row">
-                <span class="stat-mini-lbl">Всего в базе:</span>
-                <span class="stat-mini-val" id="focus-stat-total">0</span>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <!-- Bento Tile 3: Blackboard Sync Action -->
-        <div class="bento-tile bento-sync-tile">
-          <div class="sync-tile-content">
-            <div class="sync-info">
-              <h4>Синхронизация с Blackboard</h4>
-              <p>Сбор свежих лабораторных работ и методичек с bb.kai.ru</p>
-            </div>
-            <button id="bb-sync-btn" class="btn-primary-action">
-              <svg class="sync-spin-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
-                <path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"/>
+            </button>
+            <button id="home-ai-send-btn" class="glass-submit-btn glass-control">
+              <span>Распознать</span>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2">
+                <line x1="22" y1="2" x2="11" y2="13"></line>
+                <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
               </svg>
-              <span id="sync-btn-text">Обновить из Blackboard</span>
             </button>
           </div>
         </div>
-
       </div>
-    </section>
 
-    <!-- ==================== TAB 2: 📅 ТАЙМЛАЙН РАСПИСАНИЯ ==================== -->
-    <section id="view-schedule" class="app-view">
-      <!-- Weekday Selector Pills -->
-      <div class="day-pills-wrapper">
-        <div class="day-pills" id="schedule-day-pills">
-          <button class="day-pill" data-day="1">Пн</button>
-          <button class="day-pill" data-day="2">Вт</button>
-          <button class="day-pill" data-day="3">Ср</button>
-          <button class="day-pill" data-day="4">Чт</button>
-          <button class="day-pill" data-day="5">Пт</button>
-          <button class="day-pill" data-day="6">Сб</button>
+      <!-- 6. Secondary Information: Semester Progress -->
+      <div class="surface-card progress-overview-card glass-subtle">
+        <div class="card-header-clean">
+          <div class="card-title-group">
+            <h3 class="card-title-text">Прогресс семестра</h3>
+          </div>
+          <span class="subtle-badge" id="bento-motivation-badge">В начале пути</span>
+        </div>
+        <div class="progress-horizontal-layout">
+          <div class="progress-ring-box">
+            <svg class="ring-svg" viewBox="0 0 120 120">
+              <circle class="ring-bg" cx="60" cy="60" r="50"></circle>
+              <circle class="ring-fill" id="focus-ring-fill" cx="60" cy="60" r="50"></circle>
+            </svg>
+            <div class="ring-center-content">
+              <span class="ring-val" id="focus-ring-percent">–</span>
+              <span class="ring-lbl">сдано</span>
+            </div>
+          </div>
+          <div class="progress-stats-grid">
+            <div class="stat-pill-cell">
+              <span class="stat-label">Сдано:</span>
+              <span class="stat-number text-mint" id="focus-stat-done">–</span>
+            </div>
+            <div class="stat-pill-cell">
+              <span class="stat-label">Осталось:</span>
+              <span class="stat-number text-coral" id="focus-stat-todo">–</span>
+            </div>
+            <div class="stat-pill-cell">
+              <span class="stat-label">Всего работ:</span>
+              <span class="stat-number" id="focus-stat-total">–</span>
+            </div>
+          </div>
         </div>
       </div>
 
-      <!-- Active Day Banner -->
-      <div class="timeline-day-header">
-        <h3 class="timeline-day-title" id="schedule-day-title">Понедельник</h3>
-        <span class="timeline-parity-badge" id="schedule-parity-badge">Четная неделя</span>
-      </div>
-
-      <!-- Vertical Timeline List -->
-      <div class="timeline-container" id="timeline-list">
-        <div class="loader-skeleton">
-          <div class="skeleton-line" style="width: 50%"></div>
-          <div class="skeleton-line" style="width: 80%"></div>
-          <div class="skeleton-line" style="width: 65%"></div>
-        </div>
-      </div>
     </section>
 
-    <!-- ==================== TAB 3: 📝 ЗАДАНИЯ (SMART SPLIT) ==================== -->
-    <section id="view-tasks" class="app-view">
+
+    <!-- ==================== TAB 2: ЗАДАНИЯ (TASKS) ==================== -->
+    <section id="view-tasks" class="app-view" role="region" aria-label="Задания">
       
-      <!-- Segmented Pill Switcher (Linear / Apple style) -->
-      <div class="segmented-control-wrapper">
-        <div class="segmented-control">
-          <button class="segment-btn active" data-segment="submissions" id="tab-btn-submissions">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
-              <path d="M9 11l3 3L22 4"/>
-              <path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/>
-            </svg>
+      <!-- Segmented Control (Liquid Glass Pill) -->
+      <div class="segmented-wrapper">
+        <div class="liquid-segmented-control glass-subtle">
+          <button class="segmented-tab glass-control active" data-segment="submissions" id="tab-btn-submissions">
             <span>К сдаче</span>
-            <span class="segment-badge" id="count-submissions-badge">0</span>
+            <span class="tab-count-badge" id="count-submissions-badge">0</span>
           </button>
-          <button class="segment-btn" data-segment="materials" id="tab-btn-materials">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
-              <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
-              <polyline points="14 2 14 8 20 8"/>
-              <line x1="16" y1="13" x2="8" y2="13"/>
-              <line x1="16" y1="17" x2="8" y2="17"/>
-              <polyline points="10 9 9 9 8 9"/>
-            </svg>
+          <button class="segmented-tab glass-control" data-segment="materials" id="tab-btn-materials">
             <span>Методички и файлы</span>
-            <span class="segment-badge badge-neutral" id="count-materials-badge">0</span>
+            <span class="tab-count-badge badge-neutral" id="count-materials-badge">0</span>
           </button>
         </div>
       </div>
 
-      <!-- Filters & Search Toolbar -->
-      <div class="tasks-toolbar">
-        <div class="status-chips-row" id="tasks-status-row">
-          <button class="filter-chip active" data-status="all">Все</button>
-          <button class="filter-chip" data-status="todo">В процессе</button>
-          <button class="filter-chip" data-status="done">Сдано</button>
+      <!-- Filter Controls Toolbar -->
+      <div class="filter-toolbar">
+        <div class="status-capsules-row" id="tasks-status-row">
+          <button class="status-capsule glass-control active" data-status="all">Все</button>
+          <button class="status-capsule glass-control" data-status="todo">В процессе</button>
+          <button class="status-capsule glass-control" data-status="done">Сдано</button>
         </div>
 
-        <div class="search-capsule">
-          <svg class="search-icon" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <div class="glass-search-capsule glass-control">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
             <circle cx="11" cy="11" r="8"></circle>
             <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
           </svg>
-          <input type="text" id="task-search-input" placeholder="Поиск по названию или предмету...">
+          <input type="text" id="task-search-input" placeholder="Поиск по названию или предмету..." aria-label="Поиск заданий">
         </div>
       </div>
 
-      <!-- Quick Subject Horizontal Scroll -->
-      <div class="subject-chips-scroll" id="subject-filter-chips">
-        <button class="chip-subject active" data-subject-id="0">Все курсы</button>
-        <!-- Injected via JS -->
+      <!-- Subject Filter Carousel -->
+      <div class="subject-chips-carousel" id="subject-filter-chips">
+        <button class="subject-chip glass-control active" data-subject-id="0">Все курсы</button>
       </div>
 
-      <!-- Course & Assignment Accordion List -->
-      <div id="tasks-main-container" class="accordion-list">
-        <div class="loader-skeleton">
-          <div class="skeleton-line" style="width: 70%"></div>
-          <div class="skeleton-line" style="width: 90%"></div>
-          <div class="skeleton-line" style="width: 50%"></div>
+      <!-- Main Course Accordion List -->
+      <div id="tasks-main-container" class="tasks-accordion-container">
+        <div class="skeleton-card">
+          <div class="skeleton-shimmer"></div>
+        </div>
+      </div>
+
+    </section>
+
+
+    <!-- ==================== TAB 3: AI АССИСТЕНТ (STUDENT OS AI) ==================== -->
+    <section id="view-ai" class="app-view" role="region" aria-label="AI Ассистент">
+      
+      <!-- Floating Glass Composer -->
+      <div class="ai-floating-composer glass-floating">
+        <div class="composer-eyebrow">
+          <svg class="sparkle-svg" width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+            <path d="M12 2l2.4 7.2L22 12l-7.6 2.8L12 22l-2.4-7.2L2 12l7.6-2.8z"/>
+          </svg>
+          <span class="eyebrow-text">Student OS AI</span>
+        </div>
+
+        <h2 class="composer-main-heading">Что произошло?</h2>
+
+        <div class="composer-input-area">
+          <textarea id="gemini-text-input" class="composer-textarea" rows="3" placeholder="Вставь сообщение старосты или надиктуй задачу..."></textarea>
+        </div>
+
+        <div class="composer-actions-bar">
+          <div class="composer-tip-text">Интеллектуальный разбор в расписание и задачи</div>
+          <div class="composer-buttons-cluster">
+            <button id="gemini-mic-btn" class="composer-circle-btn glass-control" title="Голосовой ввод" aria-label="Голосовой ввод">
+              <span class="mic-glow-ring"></span>
+              <svg class="mic-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/>
+                <path d="M19 10v2a7 7 0 0 1-14 0v-2"/>
+                <line x1="12" y1="19" x2="12" y2="23"/>
+                <line x1="8" y1="23" x2="16" y2="23"/>
+              </svg>
+            </button>
+
+            <button id="gemini-submit-btn" class="composer-submit-btn glass-control" title="Распознать" aria-label="Распознать">
+              <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round">
+                <line x1="12" y1="19" x2="12" y2="5"></line>
+                <polyline points="5 12 12 5 19 12"></polyline>
+              </svg>
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Quick Suggestions (less visually heavy glass controls) -->
+      <div class="ai-quick-suggestions" id="ai-quick-suggestions">
+        <button class="ai-quick-chip glass-control" data-prompt="К следующей среде по физике сделать отчет по лабе 2 и распечатать титульник в 301 аудитории">
+          <svg class="chip-spark-svg" width="11" height="11" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2l2.4 7.2L22 12l-7.6 2.8L12 22l-2.4-7.2L2 12l7.6-2.8z"/></svg>
+          <span>Физика: лаба 2</span>
+        </button>
+        <button class="ai-quick-chip glass-control" data-prompt="До пятницы сдать практическую работу 3 по высшей математике в 301 аудитории">
+          <svg class="chip-spark-svg" width="11" height="11" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2l2.4 7.2L22 12l-7.6 2.8L12 22l-2.4-7.2L2 12l7.6-2.8z"/></svg>
+          <span>Вышмат: ПЗ 3</span>
+        </button>
+        <button class="ai-quick-chip glass-control" data-prompt="Подготовить доклад по основам российской государственности, взять 2 файла">
+          <svg class="chip-spark-svg" width="11" height="11" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2l2.4 7.2L22 12l-7.6 2.8L12 22l-2.4-7.2L2 12l7.6-2.8z"/></svg>
+          <span>Доклад ОРГ</span>
+        </button>
+      </div>
+
+      <!-- Shimmer Wave Loader -->
+      <div id="gemini-shimmer-loader" class="gemini-shimmer-card glass-subtle" style="display: none;">
+        <div class="shimmer-wave-bar"></div>
+        <div class="shimmer-content">
+          <svg class="gemini-spin-icon" width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
+            <path d="M12 2l2.4 7.2L22 12l-7.6 2.8L12 22l-2.4-7.2L2 12l7.6-2.8z"/>
+          </svg>
+          <span>Student OS AI анализирует контекст и расписание...</span>
+        </div>
+      </div>
+
+      <!-- Structured Preview in Glass Sheet -->
+      <div id="gemini-result-card" class="gemini-result-wrapper" style="display: none;"></div>
+
+    </section>
+
+
+    <!-- ==================== TAB 4: ЕЩЁ (РАСПИСАНИЕ, BB, СИСТЕМА) ==================== -->
+    <section id="view-more" class="app-view" role="region" aria-label="Ещё">
+      
+      <!-- Section 1: Full Schedule Timeline -->
+      <div class="surface-card schedule-full-card glass-subtle">
+        <div class="card-header-clean">
+          <div class="card-title-group">
+            <h3 class="card-title-text" id="schedule-day-title">Понедельник</h3>
+          </div>
+          <span class="subtle-badge" id="schedule-parity-badge">Чётная неделя</span>
+        </div>
+
+        <!-- Weekday Pills -->
+        <div class="day-pills-carousel" id="schedule-day-pills">
+          <button class="day-pill glass-control" data-day="1">Пн</button>
+          <button class="day-pill glass-control" data-day="2">Вт</button>
+          <button class="day-pill glass-control" data-day="3">Ср</button>
+          <button class="day-pill glass-control" data-day="4">Чт</button>
+          <button class="day-pill glass-control" data-day="5">Пт</button>
+          <button class="day-pill glass-control" data-day="6">Сб</button>
+        </div>
+
+        <!-- Timeline Container -->
+        <div class="timeline-container" id="timeline-list">
+          <div class="skeleton-card">
+            <div class="skeleton-shimmer"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Section 2: Blackboard Sync Surface -->
+      <div class="surface-card sync-surface-card glass-subtle">
+        <div class="sync-card-layout">
+          <div class="sync-card-info">
+            <h4 class="sync-card-title">Синхронизация Blackboard</h4>
+            <p class="sync-card-desc">Автоматический сбор заданий, дедлайнов и методичек с bb.kai.ru</p>
+          </div>
+          <button id="bb-sync-btn" class="glass-action-btn sync-action-btn glass-control">
+            <svg class="sync-spin-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"/>
+            </svg>
+            <span id="sync-btn-text">Обновить данные</span>
+          </button>
+        </div>
+        <div id="sync-progress-track" class="sync-progress-track" aria-hidden="true">
+          <div id="sync-progress-bar" class="sync-progress-fill"></div>
+        </div>
+      </div>
+
+      <!-- Section 3: System & Security Info -->
+      <div class="surface-card settings-card glass-subtle">
+        <div class="card-header-clean">
+          <div class="card-title-group">
+            <h3 class="card-title-text">Система и безопасность</h3>
+          </div>
+          <span class="subtle-badge text-mint">Защищено PIN</span>
+        </div>
+        <div class="settings-rows-list">
+          <div class="settings-row">
+            <div class="settings-row-label">
+              <span class="settings-row-main">Академическая группа</span>
+              <span class="settings-row-sub">ИРЭФ-ЦТ, 5108 (2 подгруппа)</span>
+            </div>
+          </div>
+          <div class="settings-row">
+            <div class="settings-row-label">
+              <span class="settings-row-main">Токен сессии</span>
+              <span class="settings-row-sub" id="settings-token-hint">Сохранен в памяти устройства</span>
+            </div>
+            <button id="settings-reset-token-btn" class="glass-danger-btn glass-control" title="Сбросить ключ">
+              Сменить PIN
+            </button>
+          </div>
         </div>
       </div>
 
@@ -275,164 +443,164 @@
 
   </main>
 
-  <!-- Floating Gemini Assistant FAB -->
-  <button id="gemini-fab-btn" class="gemini-floating-fab" title="✨ Gemini Voice & AI">
-    <div class="fab-glow-ring"></div>
-    <svg class="gemini-sparkle-svg" width="22" height="22" viewBox="0 0 24 24" fill="currentColor">
-      <path d="M12 2l2.4 7.2L22 12l-7.6 2.8L12 22l-2.4-7.2L2 12l7.6-2.8z"/>
-    </svg>
-  </button>
 
-  <!-- Modern Floating Dock Navigation Bar -->
-  <nav class="bottom-nav">
-    <button class="nav-btn active" data-tab="focus">
-      <div class="nav-indicator">
-        <svg class="nav-svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+  <!-- ==================== FLOATING GLASS DOCK (MOBILE TAB BAR) ==================== -->
+  <nav class="liquid-bottom-dock glass-nav" aria-label="Мобильная панель вкладок">
+    <button class="dock-tab glass-control active" data-tab="focus" aria-label="Сегодня">
+      <div class="dock-icon-box">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
           <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/>
         </svg>
       </div>
-      <span class="nav-label">Фокус</span>
+      <span class="dock-label">Сегодня</span>
     </button>
 
-    <button class="nav-btn" data-tab="schedule">
-      <div class="nav-indicator">
-        <svg class="nav-svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
-          <rect x="3" y="4" width="18" height="18" rx="4"></rect>
-          <line x1="16" y1="2" x2="16" y2="6"></line>
-          <line x1="8" y1="2" x2="8" y2="6"></line>
-          <line x1="3" y1="10" x2="21" y2="10"></line>
-        </svg>
-      </div>
-      <span class="nav-label">Таймлайн</span>
-    </button>
-
-    <button class="nav-btn" data-tab="tasks">
-      <div class="nav-indicator">
-        <svg class="nav-svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+    <button class="dock-tab glass-control" data-tab="tasks" aria-label="Задания">
+      <div class="dock-icon-box">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
           <path d="M9 11l3 3L22 4"/>
           <path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/>
         </svg>
-        <span class="nav-badge" id="bottom-todo-badge" style="display:none">0</span>
+        <span class="dock-badge" id="bottom-todo-badge" style="display:none">0</span>
       </div>
-      <span class="nav-label">Задания</span>
+      <span class="dock-label">Задания</span>
+    </button>
+
+    <button class="dock-tab glass-control" data-tab="ai" aria-label="AI Ассистент">
+      <div class="dock-icon-box">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor">
+          <path d="M12 2l2.4 7.2L22 12l-7.6 2.8L12 22l-2.4-7.2L2 12l7.6-2.8z"/>
+        </svg>
+      </div>
+      <span class="dock-label">AI</span>
+    </button>
+
+    <button class="dock-tab glass-control" data-tab="more" aria-label="Ещё">
+      <div class="dock-icon-box">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor">
+          <circle cx="12" cy="12" r="2"></circle>
+          <circle cx="19" cy="12" r="2"></circle>
+          <circle cx="5" cy="12" r="2"></circle>
+        </svg>
+      </div>
+      <span class="dock-label">Ещё</span>
     </button>
   </nav>
 
-  <!-- ==================== GEMINI BOTTOM SHEET MODAL ==================== -->
-  <div id="gemini-modal-overlay" class="modal-backdrop">
-    <div class="bottom-sheet gemini-sheet" id="gemini-sheet">
-      <div class="sheet-drag-handle"></div>
+
+  <!-- ==================== LAB SUMMARY GLASS MODAL ==================== -->
+  <div id="lab-summary-overlay" class="liquid-modal-backdrop" aria-hidden="true">
+    <div class="liquid-modal-sheet glass-sheet" id="lab-summary-card" role="dialog" aria-modal="true" aria-labelledby="lab-summary-title">
+      <div class="sheet-pill-handle"></div>
+      <div class="modal-sheet-header">
+        <div class="sheet-title-group">
+          <span class="sheet-ai-pill">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2l2.4 7.2L22 12l-7.6 2.8L12 22l-2.4-7.2L2 12l7.6-2.8z"/></svg>
+            <span>Gemini AI</span>
+          </span>
+          <h3 class="sheet-title-text" id="lab-summary-title">Шпаргалка к лабораторной</h3>
+        </div>
+        <button id="lab-summary-close-btn" class="sheet-close-btn glass-control" aria-label="Закрыть">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M18 6L6 18M6 6l12 12"/></svg>
+        </button>
+      </div>
+      <div class="modal-sheet-body" id="lab-summary-body">
+        <div class="skeleton-card">
+          <div class="skeleton-shimmer"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+
+  <!-- ==================== TASK DETAIL BOTTOM SHEET ==================== -->
+  <div id="task-detail-overlay" class="liquid-modal-backdrop" aria-hidden="true">
+    <div class="liquid-modal-sheet task-detail-sheet glass-sheet" id="task-detail-card" role="dialog" aria-modal="true" aria-labelledby="task-detail-title">
+      <div class="sheet-pill-handle"></div>
       
-      <div class="sheet-header">
-        <div class="gemini-header-brand">
-          <div class="gemini-avatar-glow">
-            <svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor">
-              <path d="M12 2l2.4 7.2L22 12l-7.6 2.8L12 22l-2.4-7.2L2 12l7.6-2.8z"/>
-            </svg>
+      <div class="modal-sheet-header">
+        <div class="sheet-title-group">
+          <span class="sheet-category-pill" id="task-detail-subject">Дисциплина</span>
+          <h3 class="sheet-title-text" id="task-detail-title">Название задания</h3>
+        </div>
+        <button id="task-detail-close-btn" class="sheet-close-btn glass-control" aria-label="Закрыть">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M18 6L6 18M6 6l12 12"/></svg>
+        </button>
+      </div>
+
+      <div class="modal-sheet-body" id="task-detail-body">
+        <div class="task-sheet-meta-grid">
+          <div class="sheet-meta-cell glass-subtle">
+            <span class="meta-cell-label">Статус</span>
+            <span class="meta-cell-val" id="task-detail-status">К сдаче</span>
           </div>
-          <div>
-            <h3 class="sheet-title">Gemini AI Ассистент</h3>
-            <p class="sheet-subtitle">Надиктуй голосом или вставь сообщение старосты</p>
+          <div class="sheet-meta-cell glass-subtle">
+            <span class="meta-cell-label">Тип работы</span>
+            <span class="meta-cell-val text-accent" id="task-detail-type">Лабораторная</span>
+          </div>
+          <div class="sheet-meta-cell glass-subtle" style="grid-column: 1 / -1;">
+            <span class="meta-cell-label">Срок сдачи</span>
+            <span class="meta-cell-val" id="task-detail-deadline"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align: -2px; margin-right: 4px;"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>20 сентября, 18:00</span>
           </div>
         </div>
-        <button id="gemini-close-btn" class="modal-close-btn" aria-label="Закрыть">&times;</button>
-      </div>
 
-      <!-- Quick Suggestion Chips -->
-      <div class="gemini-suggestions-row">
-        <button class="gemini-suggest-chip" data-prompt="К следующей среде по физике сделать отчет по лабе 2 и распечатать титульник">⚡ Физика: лаба 2</button>
-        <button class="gemini-suggest-chip" data-prompt="До пятницы сдать практическую работу 3 по высшей математике">📐 Вышмат: ПЗ 3</button>
-        <button class="gemini-suggest-chip" data-prompt="Подготовить доклад по основам российской государственности">🇷🇺 Доклад ОРГ</button>
-      </div>
+        <div class="task-sheet-section" id="task-detail-desc-box">
+          <h4 class="sheet-section-heading">Требования к работе</h4>
+          <p class="sheet-section-content" id="task-detail-desc">Нет дополнительных требований</p>
+        </div>
 
-      <!-- Voice & Text Input Area -->
-      <div class="gemini-input-card">
-        <textarea id="gemini-text-input" class="gemini-textarea" rows="3" placeholder="Скажи голосом или вставь сюда: 'К следующей среде по физике сделать отчет по лабе 2 и титульник...'"></textarea>
-        
-        <div class="gemini-input-actions">
-          <button id="gemini-mic-btn" class="gemini-mic-button" title="Голосовой ввод (Web Speech API)">
-            <span class="mic-pulse-ring"></span>
-            <svg class="mic-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
-              <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/>
-              <path d="M19 10v2a7 7 0 0 1-14 0v-2"/>
-              <line x1="12" y1="19" x2="12" y2="23"/>
-              <line x1="8" y1="23" x2="16" y2="23"/>
-            </svg>
-            <span id="gemini-mic-status">Голос</span>
-          </button>
-
-          <button id="gemini-submit-btn" class="gemini-submit-button">
-            <span>Распознать</span>
-            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
-              <line x1="22" y1="2" x2="11" y2="13"></line>
-              <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
-            </svg>
-          </button>
+        <div class="task-sheet-section" id="task-detail-files-box" style="display: none;">
+          <h4 class="sheet-section-heading">Материалы и файлы</h4>
+          <div class="sheet-files-list" id="task-detail-files-list"></div>
         </div>
       </div>
 
-      <!-- Shimmer Wave Loader -->
-      <div id="gemini-shimmer-loader" class="gemini-shimmer-card" style="display: none;">
-        <div class="shimmer-wave-bar"></div>
-        <div class="shimmer-content">
-          <svg class="gemini-spin-icon" width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
+      <div class="modal-sheet-actions task-sheet-actions">
+        <button id="task-detail-toggle-btn" class="glass-action-btn glass-control task-action-toggle">
+          <span id="task-detail-toggle-icon"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6"><polyline points="20 6 9 17 4 12"/></svg></span>
+          <span id="task-detail-toggle-text">Отметить сданным</span>
+        </button>
+        <button id="task-detail-ai-btn" class="glass-action-btn glass-control task-action-ai">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor">
             <path d="M12 2l2.4 7.2L22 12l-7.6 2.8L12 22l-2.4-7.2L2 12l7.6-2.8z"/>
           </svg>
-          <span>Gemini анализирует контекст и сопоставляет с расписанием 5108...</span>
-        </div>
-      </div>
-
-      <!-- Success Result Box -->
-      <div id="gemini-result-card" class="gemini-success-box" style="display: none;"></div>
-    </div>
-  </div>
-
-  <!-- ==================== LAB SUMMARY MODAL ==================== -->
-  <div id="lab-summary-overlay" class="modal-backdrop">
-    <div class="modal-card gemini-lab-card" id="lab-summary-card">
-      <div class="modal-header">
-        <div class="gemini-header-brand">
-          <span class="gemini-icon-pill">✨ Gemini AI</span>
-          <h3 class="modal-title" id="lab-summary-title">Шпаргалка к лабораторной</h3>
-        </div>
-        <button id="lab-summary-close-btn" class="modal-close-btn" aria-label="Закрыть">&times;</button>
-      </div>
-      <div class="modal-body" id="lab-summary-body">
-        <div class="loader-skeleton">
-          <div class="skeleton-line" style="width: 60%"></div>
-          <div class="skeleton-line" style="width: 90%"></div>
-          <div class="skeleton-line" style="width: 75%"></div>
-        </div>
+          <span>AI-разбор</span>
+        </button>
+        <a id="task-detail-bb-btn" href="#" target="_blank" rel="noopener noreferrer" class="glass-action-btn glass-control task-action-bb" style="display: none;">
+          <span>В Blackboard</span>
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6M15 3h6v6M10 14L21 3"/></svg>
+        </a>
       </div>
     </div>
   </div>
+
 
   <!-- ==================== PIN / PASSCODE AUTH OVERLAY ==================== -->
-  <div id="auth-overlay" class="auth-overlay" style="display: none;">
-    <div class="auth-card">
-      <div class="auth-icon-badge">
+  <div id="auth-overlay" class="liquid-auth-overlay" style="display: none;" role="dialog" aria-modal="true">
+    <div class="liquid-auth-card glass-sheet">
+      <div class="auth-icon-pod">
         <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
           <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
           <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
         </svg>
       </div>
-      <h3 class="auth-title">Доступ к Student OS</h3>
-      <p class="auth-subtitle">Введите персональный токен доступа группы 5108</p>
+      <h3 class="auth-headline">KAI Student OS</h3>
+      <p class="auth-subtext">Введите персональный ключ доступа группы 5108</p>
       
-      <form id="auth-form" class="auth-form" onsubmit="return false;">
-        <div class="auth-input-wrapper">
-          <input type="password" id="auth-token-input" class="auth-token-input" placeholder="Ключ авторизации..." autocomplete="current-password" required />
-          <button type="button" id="auth-toggle-visibility-btn" class="auth-visibility-btn" title="Показать/скрыть ключ">
+      <form id="auth-form" class="auth-form-layout" onsubmit="return false;">
+        <div class="auth-input-container">
+          <input type="password" id="auth-token-input" class="auth-field glass-control" placeholder="Ключ авторизации..." autocomplete="current-password" required />
+          <button type="button" id="auth-toggle-visibility-btn" class="auth-vis-toggle" title="Показать/скрыть ключ" aria-label="Показать или скрыть ключ">
             <svg id="auth-eye-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
               <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
               <circle cx="12" cy="12" r="3"></circle>
             </svg>
           </button>
         </div>
-        <div id="auth-error-msg" class="auth-error-text" style="display: none;"></div>
-        <button type="submit" id="auth-submit-btn" class="auth-submit-btn">
+        <div id="auth-error-msg" class="auth-error-banner" style="display: none;"></div>
+        <button type="submit" id="auth-submit-btn" class="glass-action-btn auth-submit-action glass-control">
           <span>Войти в систему</span>
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
             <line x1="5" y1="12" x2="19" y2="12"></line>
             <polyline points="12 5 19 12 12 19"></polyline>
           </svg>
@@ -441,9 +609,10 @@
     </div>
   </div>
 
-  <!-- Global Toast Notification Banner -->
-  <div id="toast" class="toast"></div>
 
-  <script src="/static/app.js?v=2.0"></script>
+  <!-- Global Liquid Toast Banner -->
+  <div id="toast" class="liquid-toast glass-floating" role="alert" aria-live="polite"></div>
+
+  <script src="/static/app.js?v=2.1"></script>
 </body>
 </html>

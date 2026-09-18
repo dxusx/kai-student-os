@@ -33,9 +33,12 @@ class Settings(BaseSettings):
     enable_tunnel: bool = Field(default=True, alias="ENABLE_TUNNEL")
 
     gemini_api_key: Optional[str] = Field(default=None, alias="GEMINI_API_KEY")
-    gemini_model: str = Field(default="gemini-2.5-flash", alias="GEMINI_MODEL")
+    gemini_model: str = Field(default="gemini-3.6-flash", alias="GEMINI_MODEL")
 
     app_auth_token: str = Field(default="", alias="APP_AUTH_TOKEN")
+
+    sync_fresh_threshold_minutes: int = Field(default=15, alias="SYNC_FRESH_THRESHOLD_MINUTES")
+    sync_recent_threshold_minutes: int = Field(default=60, alias="SYNC_RECENT_THRESHOLD_MINUTES")
 
     @field_validator("tg_user_id", mode="before")
     @classmethod

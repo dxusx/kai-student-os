@@ -1,4 +1,7 @@
-﻿import asyncio
+import asyncio
+import os
+import sys
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from database.connection import init_db, async_session
 from database.models import Subject, Task
 from database.crud import update_task_status

@@ -22,9 +22,20 @@ async_session = async_sessionmaker(
 
 
 async def init_db() -> None:
-    """Create all database tables if they do not exist."""
+    """Create all database tables if they do not exist and apply schema migrations."""
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
+
+        def _migrate_schema(sync_conn):
+            cursor = sync_conn.connection.cursor()
+            cursor.execute("PRAGMA table_info(tasks)")
+            columns = [row[1] for row in cursor.fetchall()]
+            if columns and "owner_id" not in columns:
+                cursor.execute("ALTER TABLE tasks ADD COLUMN owner_id VARCHAR(100) DEFAULT 'student_5108'")
+            if columns:
+                cursor.execute("CREATE INDEX IF NOT EXISTS ix_tasks_owner_id ON tasks (owner_id)")
+
+        await conn.run_sync(_migrate_schema)
 
 
 async def get_db() -> AsyncGenerator[AsyncSession, None]:

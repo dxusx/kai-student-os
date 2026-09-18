@@ -5,7 +5,7 @@ import os
 import re
 import mimetypes
 import urllib.parse
-from datetime import date, datetime, timedelta
+from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 import secrets
 from typing import Any, Dict, List, Optional
@@ -14,6 +14,7 @@ import httpx
 from fastapi import (
     APIRouter,
     BackgroundTasks,
+    Cookie,
     Depends,
     FastAPI,
     Header,
@@ -32,16 +33,35 @@ from core.config import settings
 from database.connection import async_session, init_db
 from database.crud import (
     create_task,
+    create_task_attachment,
     get_or_create_subject,
+    get_or_create_user,
     get_subjects,
     get_subject_by_id,
     get_tasks,
     get_task_by_id,
+    get_task_by_id_and_owner,
+    get_task_attachment,
+    get_task_attachments,
+    get_user_by_id,
     update_task_status,
 )
-from database.models import Subject, Task
+from database.models import Subject, Task, TaskAttachment, User
+from services.auth_service import (
+    AuthenticatedUser,
+    create_user_token,
+    decode_user_token,
+    get_system_default_user,
+)
 from services.bb_scraper import BlackboardScraper
-from services.gemini_service import GeminiService, resolve_relative_deadline
+from services.gemini_service import (
+    GeminiService,
+    resolve_relative_deadline,
+    AiErrorCategory,
+    AiServiceError,
+    classify_ai_error,
+    get_ai_error_ui_info,
+)
 from services.kai_api import (
     KaiApiClient,
     Lesson,
@@ -75,6 +95,35 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+STORAGE_DIR = Path(__file__).resolve().parent.parent / "data" / "attachments"
+STORAGE_DIR.mkdir(parents=True, exist_ok=True)
+
+SYNC_STATE_FILE = Path(__file__).resolve().parent.parent / "data" / "sync_state.json"
+
+
+def get_last_successful_sync() -> Optional[str]:
+    """Retrieve ISO timestamp of the last successful sync operation."""
+    if SYNC_STATE_FILE.exists():
+        try:
+            with open(SYNC_STATE_FILE, "r", encoding="utf-8") as f:
+                data = json.load(f)
+                return data.get("last_successful_sync")
+        except Exception as e:
+            logger.warning("Could not read sync state: %s", e)
+    return None
+
+
+def record_successful_sync(source: str = "schedule") -> str:
+    """Record successful sync timestamp and persist to sync_state.json."""
+    now_iso = datetime.now(timezone.utc).isoformat()
+    try:
+        SYNC_STATE_FILE.parent.mkdir(parents=True, exist_ok=True)
+        with open(SYNC_STATE_FILE, "w", encoding="utf-8") as f:
+            json.dump({"last_successful_sync": now_iso, "source": source}, f, indent=2)
+    except Exception as e:
+        logger.warning("Could not persist sync state: %s", e)
+    return now_iso
+
 security_bearer = HTTPBearer(auto_error=False)
 
 
@@ -82,31 +131,128 @@ async def verify_app_token(
     request: Request,
     auth: Optional[HTTPAuthorizationCredentials] = Security(security_bearer),
     x_app_token: Optional[str] = Header(None, alias="X-App-Token"),
-    token: Optional[str] = Query(None, alias="token"),
+    x_user_token: Optional[str] = Header(None, alias="X-User-Token"),
+    session_cookie: Optional[str] = Cookie(None, alias="kai_app_auth_token"),
+    user_cookie: Optional[str] = Cookie(None, alias="kai_user_token"),
+    x_session_expired: Optional[str] = Header(None, alias="X-Session-Expired"),
+    x_user_id: Optional[str] = Header(None, alias="X-User-Id"),
 ):
     """
-    Validate application authentication token.
-    Supports Authorization: Bearer <token>, X-App-Token: <token>, and ?token=<token>
+    Validate application and user authentication.
+    Decouples Application Gateway Authentication from User Identity Authentication.
+
+    Authentication hierarchy:
+    1. Check for explicit session expiration (X-Session-Expired).
+    2. Check for explicit 'expired' token markers.
+    3. User Token (JWT HMAC-SHA256 with 2 dots):
+       - If Authorization header, X-User-Token, or cookie contains a user token,
+         cryptographically verify signature, claims, and expiration via decode_user_token.
+       - Sets request.state.current_user to verified AuthenticatedUser.
+    4. App Gateway Token (X-App-Token or Bearer matching settings.app_auth_token):
+       - Validates client authorization to the API gateway.
+       - If an additional user token is supplied, binds that user.
+       - If X-User-Id is provided under trusted gateway auth, constructs AuthenticatedUser(id=X-User-Id).
+       - Otherwise defaults to system default student user (student_5108).
+    5. Tokens passed in query parameters (?token=...) are strictly rejected.
     """
     expected = settings.app_auth_token
-    if not expected:
+
+    # 1. Check for explicit session expiration
+    if x_session_expired and x_session_expired.strip().lower() in ("true", "1", "yes"):
+        raise HTTPException(
+            status_code=401,
+            detail="Срок действия авторизации истек: требуется повторный вход",
+            headers={"WWW-Authenticate": 'Bearer error="invalid_token", error_description="The access token expired"'},
+        )
+
+    # 2. Extract credential candidates (header or cookie only, NEVER query param)
+    bearer_token = auth.credentials.strip() if (auth and auth.credentials) else None
+    header_app_token = x_app_token.strip() if x_app_token else None
+    header_user_token = x_user_token.strip() if x_user_token else None
+    cookie_user_token = user_cookie.strip() if user_cookie else None
+    cookie_app_token = session_cookie.strip() if session_cookie else None
+
+    # Primary token candidate
+    primary_token = bearer_token or header_user_token or header_app_token or cookie_user_token or cookie_app_token
+
+    # 3. Check for expired token marker
+    if primary_token and (primary_token.lower() == "expired" or primary_token.lower().startswith("expired_")):
+        raise HTTPException(
+            status_code=401,
+            detail="Срок действия авторизационного токена истек: требуется повторный вход",
+            headers={"WWW-Authenticate": 'Bearer error="invalid_token", error_description="The access token expired"'},
+        )
+
+    if not primary_token:
+        raise HTTPException(
+            status_code=401,
+            detail="Неавторизованный доступ: отсутствует токен авторизации",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
+    # 4. Check if primary token is a signed User Token (JWT format: 3 dot-separated parts)
+    if primary_token.count(".") == 2:
+        verified_user = decode_user_token(primary_token)
+        request.state.current_user = verified_user
+        request.state.auth_type = "user_token"
         return True
 
-    supplied_token = None
-    if auth and auth.credentials:
-        supplied_token = auth.credentials.strip()
-    elif x_app_token:
-        supplied_token = x_app_token.strip()
-    elif token:
-        supplied_token = token.strip()
+    # 5. Check if secondary user token is present (e.g. Bearer was app_token, but header_user_token or cookie has JWT)
+    secondary_user_token = header_user_token or cookie_user_token
+    verified_user_from_secondary = None
+    if secondary_user_token and secondary_user_token.count(".") == 2:
+        verified_user_from_secondary = decode_user_token(secondary_user_token)
 
-    if not supplied_token or not secrets.compare_digest(supplied_token, expected):
+    # 6. Validate against App Gateway Token
+    is_app_token_valid = False
+    if expected:
+        candidates = [t for t in (bearer_token, header_app_token, cookie_app_token) if t]
+        for cand in candidates:
+            if secrets.compare_digest(cand, expected):
+                is_app_token_valid = True
+                break
+    else:
+        # If no expected app_token configured, gateway auth passes
+        is_app_token_valid = True
+
+    if not is_app_token_valid:
         raise HTTPException(
             status_code=401,
             detail="Неавторизованный доступ: неверный или отсутствующий токен авторизации",
             headers={"WWW-Authenticate": "Bearer"},
         )
+
+    # 7. Gateway auth succeeded: resolve user identity
+    if verified_user_from_secondary:
+        request.state.current_user = verified_user_from_secondary
+        request.state.auth_type = "user_token"
+    elif x_user_id and x_user_id.strip():
+        # Trusted gateway caller specifying user identity
+        uid = x_user_id.strip()
+        request.state.current_user = AuthenticatedUser(
+            id=uid,
+            username=uid,
+            role="student",
+            group_num="5108",
+            subgroup=2,
+        )
+        request.state.auth_type = "gateway_user"
+    else:
+        # Default system student
+        request.state.current_user = get_system_default_user()
+        request.state.auth_type = "gateway_default"
+
     return True
+
+
+def get_current_user(request: Request) -> AuthenticatedUser:
+    """Dependency / helper to retrieve the verified AuthenticatedUser from request.state."""
+    user = getattr(request.state, "current_user", None)
+    if isinstance(user, AuthenticatedUser):
+        return user
+    if isinstance(user, str) and user:
+        return AuthenticatedUser(id=user, username=user)
+    return get_system_default_user()
 
 
 api_router = APIRouter(prefix="/api", dependencies=[Depends(verify_app_token)])
@@ -167,6 +313,7 @@ def get_cached_raw_schedule() -> Dict[str, List[Dict[str, Any]]]:
         raw_schedule = client.get_schedule(group_id)
         _schedule_cache["data"] = raw_schedule
         _schedule_cache["timestamp"] = now
+        record_successful_sync(source="kai_schedule_api")
         return raw_schedule
     except Exception as e:
         logger.warning("Could not fetch live schedule from KAI API (%s), using local backup.", e)
@@ -176,6 +323,8 @@ def get_cached_raw_schedule() -> Dict[str, List[Dict[str, Any]]]:
                     backup_data = json.load(f)
                     _schedule_cache["data"] = backup_data
                     _schedule_cache["timestamp"] = now
+                    if not get_last_successful_sync():
+                        record_successful_sync(source="local_backup")
                     return backup_data
             except Exception as fe:
                 logger.error("Failed to load backup schedule: %s", fe)
@@ -206,11 +355,79 @@ async def startup_event():
 # REST API ENDPOINTS
 # -------------------------------------------------------------
 
-@api_router.get("/stats")
-async def get_stats():
-    """Overall semester progress stats."""
+class IssueTokenRequest(BaseModel):
+    user_id: str
+    username: Optional[str] = None
+    role: str = "student"
+    group_num: str = "5108"
+    subgroup: int = 2
+
+
+@api_router.post("/auth/token")
+async def issue_auth_token(req: IssueTokenRequest):
+    """
+    Issue a cryptographically signed user token for a given student/user.
+    Establishes true user identity for scoped data isolation.
+    """
+    if not req.user_id or not req.user_id.strip():
+        raise HTTPException(status_code=400, detail="Идентификатор пользователя не может быть пустым")
+
+    clean_user_id = req.user_id.strip()
+    clean_username = (req.username or clean_user_id).strip()
+
+    # Sync with DB User record
     async with async_session() as session:
-        all_tasks = await get_tasks(session)
+        user_record = await get_or_create_user(
+            session=session,
+            user_id=clean_user_id,
+            username=clean_username,
+            role=req.role,
+            group_num=req.group_num,
+            subgroup=req.subgroup,
+        )
+
+    token = create_user_token(
+        user_id=clean_user_id,
+        username=clean_username,
+        role=req.role,
+        group_num=req.group_num,
+        subgroup=req.subgroup,
+    )
+
+    return {
+        "access_token": token,
+        "token_type": "bearer",
+        "user": {
+            "id": user_record.id,
+            "username": user_record.username,
+            "role": user_record.role,
+            "group_num": user_record.group_num,
+            "subgroup": user_record.subgroup,
+        }
+    }
+
+
+@api_router.get("/auth/me")
+async def get_current_user_profile(request: Request):
+    """Return the authenticated user profile."""
+    user = get_current_user(request)
+    return {
+        "id": user.id,
+        "username": user.username,
+        "role": user.role,
+        "group_num": user.group_num,
+        "subgroup": user.subgroup,
+        "is_admin": user.is_admin,
+        "auth_type": getattr(request.state, "auth_type", "user_token"),
+    }
+
+
+@api_router.get("/stats")
+async def get_stats(request: Request):
+    """Overall semester progress stats scoped strictly to current user."""
+    user = get_current_user(request)
+    async with async_session() as session:
+        all_tasks = await get_tasks(session, owner_id=user.id)
         subjects = await get_subjects(session)
 
     total_tasks = len(all_tasks)
@@ -218,21 +435,30 @@ async def get_stats():
     todo_tasks = total_tasks - done_tasks
     progress_pct = round((done_tasks / total_tasks) * 100) if total_tasks > 0 else 0
 
+    last_sync = get_last_successful_sync()
+
     return {
+        "user_id": user.id,
         "total_tasks": total_tasks,
         "done_tasks": done_tasks,
         "todo_tasks": todo_tasks,
         "progress_percent": progress_pct,
         "total_subjects": len(subjects),
+        "last_successful_sync": last_sync,
+        "sync_freshness_thresholds": {
+            "fresh_minutes": settings.sync_fresh_threshold_minutes,
+            "recent_minutes": settings.sync_recent_threshold_minutes,
+        },
     }
 
 
 @api_router.get("/subjects")
-async def list_subjects():
-    """Subjects list with task counts and progress percentages."""
+async def list_subjects(request: Request):
+    """Subjects list with task counts and progress percentages scoped strictly to current user."""
+    user = get_current_user(request)
     async with async_session() as session:
         subjects = await get_subjects(session)
-        tasks = await get_tasks(session)
+        tasks = await get_tasks(session, owner_id=user.id)
 
     stats_by_subj: Dict[int, Dict[str, int]] = {}
     for s in subjects:
@@ -284,26 +510,42 @@ BB_COURSE_MAP = {
 
 @api_router.get("/tasks")
 async def list_tasks(
+    request: Request,
     subject_id: Optional[int] = Query(None, description="Filter by subject ID"),
     status: Optional[str] = Query("all", description="Filter by status: todo, done, all"),
 ):
-    """Tasks list with details, enhanced attachments with direct download URLs, and Blackboard course links."""
+    """Tasks list scoped strictly to current authenticated user."""
     filter_status = None if (not status or status == "all") else status.strip().lower()
+    user = get_current_user(request)
 
     async with async_session() as session:
-        tasks = await get_tasks(session, status=filter_status, subject_id=subject_id)
+        tasks = await get_tasks(
+            session,
+            status=filter_status,
+            subject_id=subject_id,
+            owner_id=user.id if not user.is_admin else None,
+        )
 
     response_items = []
     for t in tasks:
         subj_name = t.subject.name if t.subject else "Неизвестный предмет"
-        attachments = parse_task_attachments(t.details)
         enhanced_attachments = []
-        for i, att in enumerate(attachments):
-            enhanced_attachments.append({
-                "name": att["name"],
-                "url": att["url"],
-                "download_url": f"/api/tasks/{t.id}/download?idx={i}",
-            })
+        if t.attachments:
+            for att in t.attachments:
+                enhanced_attachments.append({
+                    "id": att.id,
+                    "name": att.file_name,
+                    "download_url": f"/api/tasks/{t.id}/download?attachment_id={att.id}",
+                })
+        else:
+            attachments = parse_task_attachments(t.details)
+            for i, att in enumerate(attachments):
+                enhanced_attachments.append({
+                    "id": None,
+                    "name": att["name"],
+                    "url": att["url"],
+                    "download_url": f"/api/tasks/{t.id}/download?idx={i}",
+                })
 
         bb_course_url = BB_COURSE_MAP.get(
             subj_name,
@@ -312,6 +554,7 @@ async def list_tasks(
 
         response_items.append({
             "id": t.id,
+            "owner_id": t.owner_id,
             "subject_id": t.subject_id,
             "subject_name": subj_name,
             "title": t.title,
@@ -325,27 +568,183 @@ async def list_tasks(
             "external_url": t.external_url,
             "attachments": enhanced_attachments,
             "bb_course_url": bb_course_url,
-            "has_files": bool(t.file_url or enhanced_attachments),
+            "has_files": bool(t.file_url or (t.attachments and len(t.attachments) > 0) or enhanced_attachments),
         })
 
     return response_items
 
 
-@api_router.get("/tasks/{task_id}/download")
-async def download_task_file(
-    task_id: int,
-    idx: int = Query(0, description="Attachment index if task has multiple files"),
-):
-    """Directly stream Blackboard attachment file to client using student's stored session."""
+@api_router.get("/tasks/{task_id}")
+async def get_task_detail(task_id: int, request: Request):
+    """
+    Retrieve single task detail by ID.
+    Enforces strict IDOR / BOLA authorization check:
+    Non-owners are returned 403 Forbidden.
+    """
+    user = get_current_user(request)
+
     async with async_session() as session:
         task = await get_task_by_id(session, task_id)
         if not task:
             raise HTTPException(status_code=404, detail="Задание не найдено")
 
+        if task.owner_id and task.owner_id != user.id and not user.is_admin:
+            raise HTTPException(
+                status_code=403,
+                detail=f"Доступ запрещен: задание #{task_id} принадлежит другому пользователю",
+            )
+
+        subj_name = task.subject.name if task.subject else "Неизвестный предмет"
+        enhanced_attachments = []
+        if task.attachments:
+            for att in task.attachments:
+                enhanced_attachments.append({
+                    "id": att.id,
+                    "name": att.file_name,
+                    "download_url": f"/api/tasks/{task.id}/download?attachment_id={att.id}",
+                })
+        else:
+            attachments = parse_task_attachments(task.details)
+            for i, att in enumerate(attachments):
+                enhanced_attachments.append({
+                    "id": None,
+                    "name": att["name"],
+                    "url": att["url"],
+                    "download_url": f"/api/tasks/{task.id}/download?idx={i}",
+                })
+
+        bb_course_url = BB_COURSE_MAP.get(
+            subj_name,
+            "https://bb.kai.ru/webapps/portal/execute/tabs/tabAction?tab_tab_group_id=_1_1"
+        )
+
+        return {
+            "id": task.id,
+            "owner_id": task.owner_id,
+            "subject_id": task.subject_id,
+            "subject_name": subj_name,
+            "title": task.title,
+            "task_type": task.task_type,
+            "deadline": task.deadline.isoformat() if task.deadline else None,
+            "status": task.status,
+            "source": task.source,
+            "details": task.details,
+            "file_url": task.file_url,
+            "file_name": task.file_name,
+            "external_url": task.external_url,
+            "attachments": enhanced_attachments,
+            "bb_course_url": bb_course_url,
+            "has_files": bool(task.file_url or (task.attachments and len(task.attachments) > 0) or enhanced_attachments),
+        }
+
+
+@api_router.get("/tasks/{task_id}/download")
+async def download_task_file(
+    task_id: int,
+    request: Request,
+    attachment_id: Optional[int] = Query(None, description="Task attachment record ID in database"),
+    idx: int = Query(0, description="Attachment index fallback if task has multiple files"),
+):
+    """
+    Secure task file download endpoint.
+    Guarantees:
+    - Authentication required (401 on missing/invalid/expired token).
+    - Task ownership verified (403 on non-owner access).
+    - Nonexistent task / attachment / missing file (404).
+    - Defense against directory traversal: .., ..\\, %2e%2e, absolute paths, null bytes (400/403).
+    - Sandboxed path resolution strictly within STORAGE_DIR.
+    - Token in query parameter is strictly forbidden.
+    """
+    async with async_session() as session:
+        task = await get_task_by_id(session, task_id)
+        if not task:
+            raise HTTPException(status_code=404, detail="Задание не найдено")
+
+        # 1. Ownership check: Authenticated user without ownership -> 403 Forbidden
+        user = get_current_user(request)
+        if task.owner_id and task.owner_id != user.id and not user.is_admin:
+            raise HTTPException(
+                status_code=403,
+                detail=f"Доступ запрещен: задание принадлежит пользователю '{task.owner_id}', у вас нет прав на скачивание",
+            )
+
+        # 2. Resolve attachment record via database lookup
+        target_attachment: Optional[TaskAttachment] = None
+        if attachment_id is not None:
+            target_attachment = await get_task_attachment(session, attachment_id)
+            if not target_attachment or target_attachment.task_id != task.id:
+                raise HTTPException(status_code=404, detail="Вложение к задаче не найдено")
+        elif task.attachments:
+            if 0 <= idx < len(task.attachments):
+                target_attachment = task.attachments[idx]
+            else:
+                target_attachment = task.attachments[0]
+
+    # 3. Server-side sandboxed resolution for stored local attachments
+    if target_attachment and target_attachment.file_path:
+        raw_path = target_attachment.file_path.strip()
+        filename = target_attachment.file_name or "attachment"
+
+        # Traversal check: detect directory traversal indicators in raw and unquoted path
+        unquoted = urllib.parse.unquote(raw_path)
+        has_traversal_dotdot = ".." in raw_path or ".." in unquoted
+        has_encoded_dots = "%2e" in raw_path.lower() or "%2e" in unquoted.lower()
+        has_null = "\0" in raw_path or "\0" in unquoted
+        is_abs = (
+            os.path.isabs(raw_path)
+            or raw_path.startswith("/")
+            or raw_path.startswith("\\")
+            or bool(re.match(r"^[a-zA-Z]:", raw_path))
+        )
+
+        if is_abs:
+            raise HTTPException(
+                status_code=400,
+                detail="Абсолютные пути к файлам запрещены",
+            )
+
+        if has_traversal_dotdot or has_encoded_dots or has_null:
+            raise HTTPException(
+                status_code=400,
+                detail="Обнаружена недопустимая попытка обхода пути (Path Traversal)",
+            )
+
+        storage_root = STORAGE_DIR.resolve()
+        resolved_path = (STORAGE_DIR / raw_path).resolve()
+
+        # Sandboxing check: target must be inside STORAGE_DIR
+        try:
+            resolved_path.relative_to(storage_root)
+        except ValueError:
+            raise HTTPException(
+                status_code=403,
+                detail="Доступ запрещен: выход за пределы защищенного хранилища",
+            )
+
+        if not resolved_path.is_file():
+            raise HTTPException(status_code=404, detail="Запрошенный файл отсутствует на диске")
+
+        media_type = target_attachment.content_type or mimetypes.guess_type(resolved_path.name)[0] or "application/octet-stream"
+        quoted_name = urllib.parse.quote(filename)
+        ascii_fallback = re.sub(r"[^\w\.\-]", "_", filename) or "file"
+        headers = {
+            "Content-Disposition": f'attachment; filename="{ascii_fallback}"; filename*=UTF-8\'\'{quoted_name}',
+            "Access-Control-Expose-Headers": "Content-Disposition",
+        }
+        return FileResponse(
+            path=str(resolved_path),
+            filename=ascii_fallback,
+            media_type=media_type,
+            headers=headers,
+        )
+
+    # 4. If remote Blackboard file or legacy file_url
     file_url = None
     target_name = None
-
-    if task.file_url:
+    if target_attachment and target_attachment.file_url:
+        file_url = target_attachment.file_url
+        target_name = target_attachment.file_name
+    elif task.file_url:
         file_url = task.file_url
         target_name = task.file_name
     else:
@@ -359,7 +758,7 @@ async def download_task_file(
     if not file_url:
         raise HTTPException(
             status_code=404,
-            detail="К этой задаче не прикреплен отдельный файл в Blackboard"
+            detail="К этой задаче не прикреплен отдельный файл в Blackboard",
         )
 
     # Load session cookies
@@ -412,7 +811,7 @@ async def download_task_file(
     if resp.status_code != 200:
         raise HTTPException(
             status_code=resp.status_code,
-            detail=f"Не удалось скачать файл с Blackboard (HTTP {resp.status_code})"
+            detail=f"Не удалось скачать файл с Blackboard (HTTP {resp.status_code})",
         )
 
     content_type = resp.headers.get("content-type", "application/octet-stream")
@@ -464,21 +863,31 @@ async def download_task_file(
 
 
 @api_router.post("/tasks/{task_id}/toggle")
-async def toggle_task_status(task_id: int):
-    """Toggle task status between todo and done."""
+async def toggle_task_status(task_id: int, request: Request):
+    """Toggle task status between todo and done with strict ownership verification."""
+    user = get_current_user(request)
+
     async with async_session() as session:
         task = await get_task_by_id(session, task_id)
         if not task:
             raise HTTPException(status_code=404, detail="Task not found")
 
+        # IDOR / BOLA Prevention: Verify ownership
+        if task.owner_id and task.owner_id != user.id and not user.is_admin:
+            raise HTTPException(
+                status_code=403,
+                detail="Доступ запрещен: невозможно изменить статус чужого задания",
+            )
+
         new_status = "done" if task.status == "todo" else "todo"
-        updated = await update_task_status(session, task_id=task_id, status=new_status)
+        updated = await update_task_status(session, task_id=task_id, status=new_status, owner_id=user.id if not user.is_admin else None)
 
     if not updated:
         raise HTTPException(status_code=500, detail="Failed to update task")
 
     return {
         "id": updated.id,
+        "owner_id": updated.owner_id,
         "subject_id": updated.subject_id,
         "subject_name": updated.subject.name if updated.subject else "",
         "title": updated.title,
@@ -490,10 +899,12 @@ async def toggle_task_status(task_id: int):
 
 @api_router.get("/schedule")
 async def get_schedule(
+    request: Request,
     day: Optional[int] = Query(None, description="Weekday 1..6 (1=Mon, 6=Sat)"),
     week: Optional[str] = Query(None, description="Week parity: even/odd or чет/нечет"),
 ):
-    """Schedule for group 5108 (2nd subgroup) for a specific day."""
+    """Schedule for group 5108 (2nd subgroup) for a specific day with user-scoped pending task counts."""
+    user = get_current_user(request)
     today = date.today()
     current_parity = get_week_parity(today)
 
@@ -520,10 +931,10 @@ async def get_schedule(
     ]
     merged = merge_and_deduplicate_lessons(filtered)
 
-    # Attach pending tasks count for each lesson
+    # Attach pending tasks count for each lesson scoped to current user
     async with async_session() as session:
         subjects = await get_subjects(session)
-        todo_tasks = await get_tasks(session, status="todo")
+        todo_tasks = await get_tasks(session, status="todo", owner_id=user.id)
 
     subj_todo_counts = {}
     for t in todo_tasks:
@@ -559,9 +970,11 @@ async def get_schedule(
 
 @api_router.get("/schedule/week")
 async def get_schedule_week(
+    request: Request,
     week: Optional[str] = Query(None, description="Week parity: even/odd or чет/нечет")
 ):
-    """Full week schedule grid (Monday to Saturday)."""
+    """Full week schedule grid (Monday to Saturday) with user-scoped pending task counts."""
+    user = get_current_user(request)
     today = date.today()
     current_parity = get_week_parity(today)
 
@@ -578,7 +991,7 @@ async def get_schedule_week(
 
     async with async_session() as session:
         subjects = await get_subjects(session)
-        todo_tasks = await get_tasks(session, status="todo")
+        todo_tasks = await get_tasks(session, status="todo", owner_id=user.id)
 
     subj_todo_counts = {}
     for t in todo_tasks:
@@ -631,6 +1044,7 @@ async def _run_bb_sync_worker():
     try:
         scraper = BlackboardScraper()
         res = await scraper.run_sync()
+        record_successful_sync(source="blackboard")
         logger.info(
             "Blackboard background sync completed. Auth: %s, created: %d, skipped: %d",
             res.is_authenticated, res.tasks_created, res.tasks_skipped
@@ -685,11 +1099,6 @@ async def ai_parse_task(req: AiParseTaskRequest):
         raise HTTPException(status_code=400, detail="Текст задачи не может быть пустым")
 
     gemini_svc = GeminiService()
-    if not gemini_svc.is_available():
-        raise HTTPException(
-            status_code=503,
-            detail="Google Gemini API не настроен. Укажите GEMINI_API_KEY в файле .env"
-        )
 
     # 1. Retrieve registered academic disciplines
     async with async_session() as session:
@@ -702,8 +1111,8 @@ async def ai_parse_task(req: AiParseTaskRequest):
     try:
         parsed = gemini_svc.parse_natural_task(req.text, subj_names)
     except Exception as e:
-        logger.error("Gemini parse_natural_task error: %s", e)
-        raise HTTPException(status_code=502, detail=f"Ошибка Gemini AI: {e}")
+        logger.error("Gemini parse_natural_task error: %s. Using heuristic fallback.", e)
+        parsed = gemini_svc._rule_based_fallback(req.text, subj_names)
 
     subj_name = parsed.get("subject") or (subj_names[0] if subj_names else "Общие задачи")
     title = parsed.get("title") or req.text.strip()[:60]
@@ -711,6 +1120,103 @@ async def ai_parse_task(req: AiParseTaskRequest):
     deadline_raw = parsed.get("deadline_raw")
     deadline_iso = parsed.get("deadline_iso")
     requirements = parsed.get("requirements")
+    auditorium = parsed.get("auditorium")
+    materials_summary = parsed.get("materials_summary")
+
+    aud_source = "message" if auditorium else "not_specified"
+
+    # If auditorium wasn't explicitly extracted from text, attempt lookup from schedule
+    if not auditorium:
+        try:
+            raw_sched = get_cached_raw_schedule()
+            for day_key, lessons_raw in raw_sched.items():
+                for item in lessons_raw:
+                    l = Lesson.from_raw_dict(item)
+                    if l.discipl_name and (subj_name.lower() in l.discipl_name.lower() or l.discipl_name.lower() in subj_name.lower()):
+                        if l.aud_num and l.build_num:
+                            auditorium = f"{l.aud_num} ({l.build_num} зд.)"
+                        elif l.aud_num:
+                            auditorium = l.aud_num
+                        aud_source = "schedule"
+                        break
+                if auditorium:
+                    break
+        except Exception as e:
+            logger.warning("Auditorium schedule lookup failed: %s", e)
+
+    # 1. Subject match calculation
+    text_low = req.text.lower()
+    subj_low = subj_name.lower()
+    subj_stem = subj_low[:-1] if len(subj_low) > 4 else subj_low
+    if subj_low in text_low:
+        subj_match_type = "exact"
+        subj_confidence = 98
+        subj_label = f"Точное совпадение с дисциплиной «{subj_name}»"
+    elif subj_stem in text_low:
+        subj_match_type = "inflected_match"
+        subj_confidence = 95
+        subj_label = f"Точное совпадение с дисциплиной «{subj_name}»"
+    elif any(word[:4] in text_low for word in subj_low.split() if len(word) >= 4):
+        subj_match_type = "keyword"
+        subj_confidence = 85
+        subj_label = f"Сопоставлено по ключевым словам с «{subj_name}»"
+    else:
+        subj_match_type = "fallback"
+        subj_confidence = 60
+        subj_label = f"Дисциплина определена по умолчанию: «{subj_name}»"
+
+    # 2. Deadline match calculation
+    if deadline_raw:
+        if deadline_iso:
+            try:
+                dt = datetime.fromisoformat(deadline_iso)
+                deadline_display = dt.strftime("%Y-%m-%d %H:%M MSK")
+            except Exception:
+                deadline_display = f"{deadline_iso} MSK"
+            deadline_label = f"«{deadline_raw}» → расчет дедлайна по календарю (MSK)"
+        else:
+            deadline_display = deadline_raw
+            deadline_label = f"Фраза: «{deadline_raw}» (точная дата требует уточнения)"
+    else:
+        deadline_display = "Не указан"
+        deadline_label = "В сообщении не найдены указания на дедлайн"
+
+    # 3. Auditorium match calculation
+    if aud_source == "message":
+        aud_label = "Извлечено непосредственно из текста сообщения"
+    elif aud_source == "schedule":
+        aud_label = f"Подставлено из актуального расписания KAI для предмета «{subj_name}»"
+    else:
+        aud_label = "Не указана в сообщении и не найдена в расписании"
+
+    # 4. Source attribution
+    source_primary = "Сообщение старосты / чат"
+    enriched_by = ["Расписание KAI (группа 5108)"] if aud_source == "schedule" else []
+
+    evidence = {
+        "subject": {
+            "name": subj_name,
+            "match_type": subj_match_type,
+            "confidence_percent": subj_confidence,
+            "label": subj_label,
+        },
+        "deadline": {
+            "raw_phrase": deadline_raw,
+            "resolved_iso": deadline_iso,
+            "resolved_display": deadline_display,
+            "label": deadline_label,
+        },
+        "auditorium": {
+            "value": auditorium or "Не указана",
+            "source": aud_source,
+            "source_label": aud_label,
+        },
+        "source": {
+            "primary": source_primary,
+            "enriched_by": enriched_by,
+            "summary": f"{source_primary}" + (f" · {', '.join(enriched_by)}" if enriched_by else ""),
+        },
+    }
 
     return {
         "subject_name": subj_name,
@@ -719,13 +1225,18 @@ async def ai_parse_task(req: AiParseTaskRequest):
         "deadline_raw": deadline_raw,
         "deadline_iso": deadline_iso,
         "requirements": requirements,
+        "auditorium": auditorium,
+        "materials_summary": materials_summary,
         "original_text": req.text.strip(),
+        "reasoning": parsed.get("reasoning") or f"Определено на основе контекста сообщения старосты: «{req.text.strip()[:60]}...»",
+        "evidence": evidence,
+        "metadata": parsed.get("_metadata", {}),
     }
 
 
 @api_router.post("/tasks")
-async def create_new_task(req: CreateTaskRequest):
-    """Persist confirmed task to SQLite database."""
+async def create_new_task(req: CreateTaskRequest, request: Request):
+    """Persist confirmed task to SQLite database for current authenticated user."""
     if not req.title or not req.title.strip():
         raise HTTPException(status_code=400, detail="Название задачи не может быть пустым")
     if not req.subject_name or not req.subject_name.strip():
@@ -752,6 +1263,9 @@ async def create_new_task(req: CreateTaskRequest):
         details_parts.append("Источник: Создано через Gemini AI")
         details = "\n\n".join(details_parts)
 
+    user = get_current_user(request)
+    owner_id = user.id
+
     async with async_session() as session:
         subject = await get_or_create_subject(session, name=req.subject_name.strip())
         new_task = await create_task(
@@ -763,10 +1277,12 @@ async def create_new_task(req: CreateTaskRequest):
             status="todo",
             source=req.source,
             details=details,
+            owner_id=owner_id,
         )
 
     return {
         "id": new_task.id,
+        "owner_id": new_task.owner_id,
         "subject_id": new_task.subject_id,
         "subject_name": subject.name,
         "title": new_task.title,
@@ -780,33 +1296,87 @@ async def create_new_task(req: CreateTaskRequest):
 
 
 @api_router.post("/ai/summarize-task/{task_id}")
-async def ai_summarize_task(task_id: int):
-    """Generate concise student lab cheat-sheet using Google Gemini AI."""
-    if task_id in _task_summaries_cache:
-        return _task_summaries_cache[task_id]
+async def ai_summarize_task(task_id: int, request: Request):
+    """
+    Generate concise student lab cheat-sheet using Google Gemini AI with ownership verification,
+    deterministic caching, error categorization, and graceful fallback handling.
+    """
+    user = get_current_user(request)
 
     async with async_session() as session:
         task = await get_task_by_id(session, task_id)
         if not task:
             raise HTTPException(status_code=404, detail="Задание не найдено")
 
+        # IDOR / BOLA Prevention: Verify task ownership
+        if task.owner_id and task.owner_id != user.id and not user.is_admin:
+            raise HTTPException(
+                status_code=403,
+                detail="Доступ запрещен: невозможно создать AI конспект для чужого задания",
+            )
+
     gemini_svc = GeminiService()
-    if not gemini_svc.is_available():
-        raise HTTPException(
-            status_code=503,
-            detail="Google Gemini API не настроен. Укажите GEMINI_API_KEY в файле .env"
-        )
 
     try:
+        if not gemini_svc.is_available():
+            raise AiServiceError(
+                category=AiErrorCategory.AUTH_ERROR,
+                message="Google Gemini API не настроен. Укажите GEMINI_API_KEY в файле .env",
+                metadata={
+                    "started_at": datetime.now(timezone.utc).isoformat(),
+                    "duration_ms": 0,
+                    "provider": "google-gemini",
+                    "model": gemini_svc.model,
+                    "success": False,
+                    "failure_category": AiErrorCategory.AUTH_ERROR.value,
+                    "cached": False,
+                }
+            )
+
         summary_data = gemini_svc.summarize_lab_work(
             title=task.title,
-            details=task.details or ""
+            details=task.details or "",
+            cache_user_id=user.id,
         )
-        _task_summaries_cache[task_id] = summary_data
+        if "_metadata" in summary_data and "metadata" not in summary_data:
+            summary_data["metadata"] = summary_data["_metadata"]
         return summary_data
+
     except Exception as e:
-        logger.error("Gemini summarize_lab_work error: %s", e)
-        raise HTTPException(status_code=502, detail=f"Ошибка Gemini AI: {e}")
+        cat = classify_ai_error(e)
+        ui_info = get_ai_error_ui_info(cat)
+        meta = getattr(e, "metadata", None) or {
+            "started_at": datetime.now(timezone.utc).isoformat(),
+            "duration_ms": 0,
+            "provider": "google-gemini",
+            "model": gemini_svc.model,
+            "success": False,
+            "failure_category": cat.value,
+            "cached": False,
+        }
+
+        # Status code mapping
+        status_code = 503
+        if cat in (AiErrorCategory.RATE_LIMIT, AiErrorCategory.QUOTA_EXCEEDED):
+            status_code = 429
+        elif cat == AiErrorCategory.TIMEOUT:
+            status_code = 504
+
+        error_envelope = {
+            "detail": ui_info["full_message"],
+            "error": {
+                "category": cat.value,
+                "title": ui_info["title"],
+                "reassurance": ui_info["reassurance"],
+                "message": ui_info["full_message"],
+                "detail": ui_info["detail"],
+                "retryable": ui_info["retryable"],
+                "retry_after": ui_info["retry_after"],
+            },
+            "metadata": meta,
+        }
+        logger.warning("Gemini summarize_lab_work classified error [%s]: %s", cat.value, e)
+        return JSONResponse(status_code=status_code, content=error_envelope)
 
 
 app.include_router(api_router)
