@@ -10,18 +10,18 @@ Audit of all files required for quality assurance, automated test execution, and
 
 | File Path | Exists Locally | Exists in Git | Committed | Pushed | Role & Description |
 |---|---|---|---|---|---|
-| `scripts/run_full_qa.py` | Yes | Yes | Pending | Pending | Master automated QA runner (Playwright + Unit + Reports) |
-| `docs/FUNCTION_INVENTORY.md` | Yes | Yes | Pending | Pending | Complete 63-point functional matrix with status |
-| `docs/FULL_QA_REPORT.md` | Yes | Yes | Pending | Pending | Automated execution report across 103 items |
-| `docs/FULL_QA_FIX_PLAN.md` | Yes | Yes | Pending | Pending | Prioritized remediation & security hardening plan |
+| `scripts/run_full_qa.py` | Yes | Yes | Yes | Yes | Master automated QA runner (Playwright + Unit + Reports) |
+| `docs/FUNCTION_INVENTORY.md` | Yes | Yes | Yes | Yes | Complete 63-point functional matrix with status |
+| `docs/FULL_QA_REPORT.md` | Yes | Yes | Yes | Yes | Automated execution report across 103 items |
+| `docs/FULL_QA_FIX_PLAN.md` | Yes | Yes | Yes | Yes | Prioritized remediation & security hardening plan |
 | `docs/UX_METRICS.md` | Yes | Yes | Yes | Yes | Quantitative UX audit & performance benchmarks |
 | `docs/REAL_DEVICE_CHECKLIST.md` | Yes | Yes | Yes | Yes | Physical device & browser viewport validation |
 | `tests/test_download_security.py` | Yes | Yes | Yes | Yes | 13-point security test for file downloads & path traversal |
 | `tests/test_authorization_isolation.py` | Yes | Yes | Yes | Yes | 18-point multi-tenant isolation & JWT security tests |
 | `tests/test_ai_resilience.py` | Yes | Yes | Yes | Yes | AI pipeline resilience, timeout, and error fallback tests |
-| `scratch/qa_journey_runner.py` | Yes | Yes | Pending | Pending | Automated 13-step student user journey emulator |
-| `scratch/measure_ux_metrics.py` | Yes | Yes | Pending | Pending | FCP, LCP, CLS, FID and DOM complexity measurement tool |
-| `scratch/run_viewport_qa.py` | Yes | Yes | Pending | Pending | Multi-viewport screenshot & responsive test runner |
+| `scratch/qa_journey_runner.py` | Yes | Yes | Yes | Yes | Automated 13-step student user journey emulator |
+| `scratch/measure_ux_metrics.py` | Yes | Yes | Yes | Yes | FCP, LCP, CLS, FID and DOM complexity measurement tool |
+| `scratch/run_viewport_qa.py` | Yes | Yes | Yes | Yes | Multi-viewport screenshot & responsive test runner |
 
 *Note: Scratch utilities were preserved in `scratch/` to allow full reproduction of previous UX and journey audit runs.*
 
