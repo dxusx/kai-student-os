@@ -340,5 +340,9 @@ def run_authorization_tests():
     print("================================================================")
 
 
+def test_all_authorization_isolation():
+    run_authorization_tests()
+
+
 if __name__ == "__main__":
     run_authorization_tests()

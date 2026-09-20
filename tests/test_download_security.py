@@ -38,24 +38,29 @@ from database.crud import (
 )
 
 
-def get_client():
+import pytest
+
+@pytest.fixture
+def client():
     asyncio.run(init_db())
     return TestClient(app)
 
 
-def get_valid_token():
+@pytest.fixture
+def valid_token():
     return settings.app_auth_token or "kai5108_secret_passcode_2026"
 
 
-def get_auth_headers(token=None):
-    t = token or get_valid_token()
+@pytest.fixture
+def auth_headers(valid_token):
     return {
-        "Authorization": f"Bearer {t}",
+        "Authorization": f"Bearer {valid_token}",
         "X-User-Id": "student_5108",
     }
 
 
-def setup_fixtures(token=None):
+@pytest.fixture
+def fixtures(valid_token):
     """Seed sample test tasks and attachments for security testing."""
     STORAGE_DIR.mkdir(parents=True, exist_ok=True)
 

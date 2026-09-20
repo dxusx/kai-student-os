@@ -348,5 +348,9 @@ def run_all_ai_resilience_tests():
     print("================================================================")
 
 
+def test_all_ai_resilience():
+    run_all_ai_resilience_tests()
+
+
 if __name__ == "__main__":
     run_all_ai_resilience_tests()

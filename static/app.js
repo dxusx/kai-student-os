@@ -21,9 +21,88 @@ function setAuthToken(token) {
   }
 }
 
+function getCurrentUserKey() {
+  const token = getAuthToken();
+  if (!token) return 'anonymous';
+  if (token.includes('.')) {
+    try {
+      const parts = token.split('.');
+      if (parts.length === 3) {
+        const payload = JSON.parse(atob(parts[1].replace(/-/g, '+').replace(/_/g, '/')));
+        if (payload && (payload.sub || payload.user_id)) return `user_${payload.sub || payload.user_id}`;
+      }
+    } catch (_) {}
+  }
+  return 'token_' + encodeURIComponent(token.slice(0, 32));
+}
+
+const IDB_NAME = 'kai_offline_store';
+const IDB_VERSION = 1;
+const IDB_STORE = 'user_data';
+
+function openIDB() {
+  return new Promise((resolve) => {
+    if (typeof window === 'undefined' || !window.indexedDB) {
+      resolve(null);
+      return;
+    }
+    const request = indexedDB.open(IDB_NAME, IDB_VERSION);
+    request.onupgradeneeded = (e) => {
+      const db = e.target.result;
+      if (!db.objectStoreNames.contains(IDB_STORE)) {
+        db.createObjectStore(IDB_STORE, { keyPath: 'key' });
+      }
+    };
+    request.onsuccess = (e) => resolve(e.target.result);
+    request.onerror = () => resolve(null);
+  });
+}
+
+async function getCachedUserData(key) {
+  const userKey = getCurrentUserKey();
+  if (!userKey || userKey === 'anonymous') return null;
+  const db = await openIDB();
+  if (!db) return null;
+  return new Promise((resolve) => {
+    try {
+      const tx = db.transaction(IDB_STORE, 'readonly');
+      const store = tx.objectStore(IDB_STORE);
+      const req = store.get(`${userKey}:${key}`);
+      req.onsuccess = () => resolve(req.result ? req.result.data : null);
+      req.onerror = () => resolve(null);
+    } catch (_) {
+      resolve(null);
+    }
+  });
+}
+
+async function setCachedUserData(key, data) {
+  const userKey = getCurrentUserKey();
+  if (!userKey || userKey === 'anonymous') return;
+  const db = await openIDB();
+  if (!db) return;
+  return new Promise((resolve) => {
+    try {
+      const tx = db.transaction(IDB_STORE, 'readwrite');
+      const store = tx.objectStore(IDB_STORE);
+      store.put({ key: `${userKey}:${key}`, data: data, updatedAt: Date.now() });
+      tx.oncomplete = () => resolve(true);
+      tx.onerror = () => resolve(false);
+    } catch (_) {
+      resolve(false);
+    }
+  });
+}
+
 function clearAuthToken() {
   localStorage.removeItem(AUTH_TOKEN_KEY);
   document.cookie = 'kai_app_auth_token=; path=/; max-age=0; SameSite=Strict';
+  if (typeof state !== 'undefined') {
+    state.tasks = [];
+    state.subjects = [];
+    state.todaySchedule = [];
+    state.stats = null;
+  }
 }
 
 async function apiFetch(url, options = {}) {
@@ -684,11 +763,18 @@ async function loadTodayScheduleForLive() {
     if (res.ok) {
       const data = await res.json();
       state.todaySchedule = data.lessons || [];
+      await setCachedUserData('today_schedule', state.todaySchedule);
       updateLiveLessonStatus();
       renderTodaySchedulePeek();
     }
   } catch (e) {
-    console.error('Failed to load today schedule for live hero:', e);
+    console.warn('Failed to load today schedule for live hero, trying cache:', e);
+    const cached = await getCachedUserData('today_schedule');
+    if (cached) {
+      state.todaySchedule = cached;
+      updateLiveLessonStatus();
+      renderTodaySchedulePeek();
+    }
   }
 }
 
@@ -1129,12 +1215,24 @@ async function loadTasksData() {
       apiFetch(API_BASE + '/api/tasks'),
       apiFetch(API_BASE + '/api/subjects')
     ]);
-    if (tasksRes.ok) state.tasks = await tasksRes.json();
-    if (subjRes.ok) state.subjects = await subjRes.json();
+    if (tasksRes.ok) {
+      state.tasks = await tasksRes.json();
+      await setCachedUserData('tasks', state.tasks);
+    }
+    if (subjRes.ok) {
+      state.subjects = await subjRes.json();
+      await setCachedUserData('subjects', state.subjects);
+    }
     updateBadges();
     renderSubjectFilterChips();
   } catch (e) {
-    console.error('Failed to load tasks data:', e);
+    console.warn('Failed to load tasks data online, trying offline cache:', e);
+    const cachedTasks = await getCachedUserData('tasks');
+    const cachedSubj = await getCachedUserData('subjects');
+    state.tasks = cachedTasks || [];
+    state.subjects = cachedSubj || [];
+    updateBadges();
+    renderSubjectFilterChips();
   }
 }
 
@@ -1143,10 +1241,16 @@ async function loadStatsData() {
     const res = await apiFetch(API_BASE + '/api/stats');
     if (res.ok) {
       state.stats = await res.json();
+      await setCachedUserData('stats', state.stats);
       updateFreshnessDisplay();
     }
   } catch (e) {
-    console.error('Failed to load stats:', e);
+    console.warn('Failed to load stats online, trying offline cache:', e);
+    const cachedStats = await getCachedUserData('stats');
+    if (cachedStats) {
+      state.stats = cachedStats;
+      updateFreshnessDisplay();
+    }
   }
 }
 
@@ -1987,9 +2091,17 @@ async function loadScheduleData() {
     const res = await apiFetch(API_BASE + '/api/schedule?day=' + state.scheduleDay + '&week=' + state.scheduleParity);
     if (!res.ok) throw new Error('Schedule API error');
     const data = await res.json();
-    renderTimeline(data.lessons || []);
+    const lessons = data.lessons || [];
+    await setCachedUserData(`schedule_${state.scheduleDay}_${state.scheduleParity}`, lessons);
+    renderTimeline(lessons);
   } catch (err) {
-    container.innerHTML = '<div class="task-placeholder" style="color: var(--accent-red);">Ошибка загрузки расписания</div>';
+    console.warn('Failed to load schedule online, trying offline cache:', err);
+    const cached = await getCachedUserData(`schedule_${state.scheduleDay}_${state.scheduleParity}`);
+    if (cached) {
+      renderTimeline(cached);
+    } else {
+      container.innerHTML = '<div class="task-placeholder" style="color: var(--accent-red);">Ошибка загрузки расписания</div>';
+    }
   }
 }
 
