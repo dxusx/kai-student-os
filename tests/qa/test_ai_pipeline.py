@@ -18,6 +18,7 @@ import asyncio
 import json
 import sqlite3
 import time
+import uuid
 from typing import Any, Callable, Dict, Optional
 from unittest.mock import AsyncMock, MagicMock, patch
 import httpx
@@ -49,10 +50,28 @@ def _get_db_task_count() -> int:
     return cnt
 
 
+_shared_http_client: Optional[httpx.Client] = None
+
+
+def get_test_http_client() -> httpx.Client:
+    global _shared_http_client
+    if _shared_http_client is None or _shared_http_client.is_closed:
+        _shared_http_client = httpx.Client(timeout=10.0)
+    return _shared_http_client
+
+
 def execute_single_ai_parse_test(text: str, label: str) -> AiRequestTrace:
     """Executes a single isolated AI parse request and captures high-precision monotonic timestamps."""
     alice_token = get_alice_token()
-    headers = {"Authorization": f"Bearer {alice_token}"}
+    req_id = f"test-{uuid.uuid4().hex[:8]}"
+    headers = {
+        "Authorization": f"Bearer {alice_token}",
+        "X-Request-ID": req_id,
+    }
+    client = get_test_http_client()
+
+    # Pre-test integrity verification (before measurement window starts)
+    count_before = _get_db_task_count()
 
     # t0: request start
     t0 = time.perf_counter()
@@ -65,17 +84,28 @@ def execute_single_ai_parse_test(text: str, label: str) -> AiRequestTrace:
 
     # t3: fetch start
     t3 = t2
-    count_before = _get_db_task_count()
-    res = httpx.post(
+    res = client.post(
         f"{BASE_URL}/api/ai/parse-task",
         headers=headers,
         json=req_body,
-        timeout=10.0,
     )
     # t4: fetch end / t14: response received
     t4 = time.perf_counter()
     t14 = t4
 
+    # Extract server timings
+    st = parse_server_timing_header(res.headers.get("Server-Timing") or res.headers.get("server-timing"))
+    backend_dur = st.get("backend", max(0.001, (t4 - t3) * 800))
+    gemini_dur = st.get("gemini", 0.03)
+    db_dur = st.get("db", 1.0)
+    val_dur = st.get("validation", 1.0)
+
+    auth_dur = st.get("auth", max(0.0, backend_dur - (gemini_dur + db_dur + val_dur)))
+
+    # t15: client validation / render end
+    t15 = time.perf_counter()
+
+    # Post-test integrity assertions (after measurement window ends)
     count_after = _get_db_task_count()
     assert count_before == count_after, f"CRITICAL BUG: Parse of '{label}' mutated database! ({count_before} -> {count_after})"
 
@@ -87,18 +117,9 @@ def execute_single_ai_parse_test(text: str, label: str) -> AiRequestTrace:
             data = res.json()
             assert "title" in data, f"Missing title in parse output for {label}"
             assert "subject_name" in data, f"Missing subject_name in parse output for {label}"
-
-    # Extract server timings
-    st = parse_server_timing_header(res.headers.get("Server-Timing") or res.headers.get("server-timing"))
-    backend_dur = st.get("backend", max(0.001, (t4 - t3) * 800))
-    gemini_dur = st.get("gemini", 15.0)
-    db_dur = st.get("db", 1.0)
-    val_dur = st.get("validation", 1.0)
-
-    auth_dur = st.get("auth", max(0.0, backend_dur - (gemini_dur + db_dur + val_dur)))
-
-    # t15: client validation / render end
-    t15 = time.perf_counter()
+            resp_req_id = res.headers.get("X-Request-ID") or res.headers.get("x-request-id")
+            if resp_req_id:
+                assert resp_req_id == req_id, f"Mismatched request ID: {resp_req_id} != {req_id}"
 
     return AiRequestTrace(
         t0_request_start=t0,

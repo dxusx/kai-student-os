@@ -255,8 +255,7 @@ def create_test_fixture_trace(
     )
 
 
-# Alias for backwards compatibility with tests expecting build_consistent_trace
-def build_consistent_trace(
+def legacy_build_synthetic_fixture_trace(
     t0: float,
     t1: float,
     t2: float,
@@ -270,8 +269,9 @@ def build_consistent_trace(
     raw_val_ms: float = 1.0,
 ) -> AiRequestTrace:
     """
-    TEST FIXTURE ONLY.
-    Legacy alias for synthetic fixture construction.
+    LEGACY TEST FIXTURE ONLY.
+    Synthetic fixture helper that clamps/scales values for isolated unit test scenarios.
+    MUST NEVER be used for real measurements (is_fixture is strictly True).
     """
     fe_ms = max(0.0, (t2 - t0) * 1000.0)
     gap_ms = max(0.0, (t3 - t2) * 1000.0)
@@ -302,3 +302,7 @@ def build_consistent_trace(
         val_ms=v_ms,
         render_ms=rnd_ms,
     )
+
+
+# Explicit legacy alias
+build_consistent_trace = legacy_build_synthetic_fixture_trace

@@ -408,6 +408,9 @@ class LabSummary(BaseModel):
     )
 
 
+_cached_genai_clients: Dict[str, Any] = {}
+
+
 class GeminiService:
     """Service wrapper for Google Gemini API with fallback resiliency."""
 
@@ -424,11 +427,15 @@ class GeminiService:
         elif "gemini-3.7-flash" not in self.candidate_models:
             self.candidate_models.append("gemini-3.7-flash")
         self._client: Optional[genai.Client] = None
-        if self.api_key:
-            try:
-                self._client = genai.Client(api_key=self.api_key)
-            except Exception as e:
-                logger.error("Failed to initialize Google GenAI Client: %s", e)
+        if self.api_key and genai is not None:
+            if self.api_key in _cached_genai_clients:
+                self._client = _cached_genai_clients[self.api_key]
+            else:
+                try:
+                    self._client = genai.Client(api_key=self.api_key)
+                    _cached_genai_clients[self.api_key] = self._client
+                except Exception as e:
+                    logger.error("Failed to initialize Google GenAI Client: %s", e)
 
     def is_available(self) -> bool:
         """Check if Gemini API key is configured and client initialized."""

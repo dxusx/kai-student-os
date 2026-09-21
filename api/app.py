@@ -4,6 +4,7 @@ import logging
 import os
 import re
 import time
+import uuid
 import mimetypes
 import urllib.parse
 from datetime import date, datetime, timedelta, timezone
@@ -349,6 +350,10 @@ def match_subject_ids_for_discipline(discipl_name: str, subjects: List[Subject])
 @app.on_event("startup")
 async def startup_event():
     await init_db()
+    try:
+        get_gemini_service()
+    except Exception as e:
+        logger.warning("Gemini pre-warming skipped: %s", e)
     logger.info("FastAPI KAI Assistant 5108 started.")
 
 
@@ -1091,16 +1096,29 @@ class CreateTaskRequest(BaseModel):
 
 
 _task_summaries_cache: Dict[int, Dict[str, Any]] = {}
+_shared_gemini_service: Optional[GeminiService] = None
+
+
+def get_gemini_service() -> GeminiService:
+    global _shared_gemini_service
+    if _shared_gemini_service is None:
+        _shared_gemini_service = GeminiService()
+    return _shared_gemini_service
 
 
 @api_router.post("/ai/parse-task")
-async def ai_parse_task(req: AiParseTaskRequest, response: Response):
+async def ai_parse_task(req: AiParseTaskRequest, response: Response, request: Request = None):
     """Recognize task from free-form natural language text using Google Gemini AI (preview only, does not save to DB)."""
     t5_be_start = time.perf_counter()
+    req_id = request.headers.get("x-request-id") if request else None
+    if not req_id:
+        req_id = f"req-{uuid.uuid4().hex[:12]}"
+    response.headers["X-Request-ID"] = req_id
+
     if not req.text or not req.text.strip():
         raise HTTPException(status_code=400, detail="Текст задачи не может быть пустым")
 
-    gemini_svc = GeminiService()
+    gemini_svc = get_gemini_service()
 
     # 1. Retrieve registered academic disciplines
     t11_db_start = time.perf_counter()
@@ -1243,6 +1261,7 @@ async def ai_parse_task(req: AiParseTaskRequest, response: Response):
     )
 
     timing_meta = {
+        "request_id": req_id,
         "backend_ms": round(backend_dur, 2),
         "gemini_ms": round(gemini_dur, 2),
         "db_ms": round(db_dur, 2),

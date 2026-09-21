@@ -10,6 +10,7 @@ from tests.qa.ai_latency_tracer import (
     AiRequestTrace,
     create_test_fixture_trace,
     build_consistent_trace,
+    legacy_build_synthetic_fixture_trace,
     parse_server_timing_header,
     verify_latency_math,
 )
@@ -232,3 +233,50 @@ def test_monotonic_clock_ordering():
     t1 = time.perf_counter()
     assert t1 > t0
     assert (t1 - t0) * 1000 >= 0.5
+
+
+def test_impossible_real_measurement_cannot_be_normalized():
+    """
+    Verifies that impossible real measurements (e.g. backend > round_trip or child_sum > backend)
+    can NEVER be normalized into PASS when treated as real measurements (is_fixture=False).
+    Only legacy synthetic fixtures explicitly flagged with is_fixture=True are allowed
+    to clamp/scale for unit testing.
+    """
+    # 1. Real trace with impossible backend (> round trip)
+    real_trace_broken = AiRequestTrace(
+        t0_request_start=100.0,
+        t1_frontend_prepare_start=100.0,
+        t2_frontend_prepare_end=100.001,
+        t3_fetch_start=100.001,
+        t4_fetch_end=100.021,        # 20ms round trip
+        t14_response_received=100.021,
+        t15_render_end=100.022,
+        raw_backend_ms=45.0,         # 45ms > 20ms!
+        raw_gemini_ms=10.0,
+        raw_db_ms=2.0,
+        raw_val_ms=1.0,
+        raw_auth_ms=32.0,
+        is_fixture=False,
+    )
+    metrics = real_trace_broken.compute_metrics()
+    is_valid, err = verify_latency_math(metrics)
+    assert is_valid is False
+    assert "exceeds client round trip" in err
+
+    # 2. Legacy helper explicitly returns is_fixture=True
+    fixture_trace = legacy_build_synthetic_fixture_trace(
+        t0=100.0,
+        t1=100.0,
+        t2=100.001,
+        t3=100.001,
+        t4=100.021,
+        t14=100.021,
+        t15=100.022,
+        raw_backend_ms=45.0,
+        raw_gemini_ms=10.0,
+        raw_db_ms=2.0,
+        raw_val_ms=1.0,
+    )
+    fixture_metrics = fixture_trace.compute_metrics()
+    assert fixture_metrics["is_fixture"] is True
+
