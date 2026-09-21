@@ -1084,6 +1084,18 @@ class AiParseTaskRequest(BaseModel):
     text: str
 
 
+class AiChatMessage(BaseModel):
+    role: str
+    content: str
+
+
+class AiChatRequest(BaseModel):
+    message: str
+    history: Optional[List[AiChatMessage]] = None
+    image_base64: Optional[str] = None
+    mode: Optional[str] = "tutor"
+
+
 class CreateTaskRequest(BaseModel):
     subject_name: str
     title: str
@@ -1104,6 +1116,158 @@ def get_gemini_service() -> GeminiService:
     if _shared_gemini_service is None:
         _shared_gemini_service = GeminiService()
     return _shared_gemini_service
+
+
+@api_router.post("/ai/chat")
+async def ai_chat(req: AiChatRequest, request: Request):
+    """
+    Google AI Studio conversational chat endpoint with Function Calling tools,
+    multimodal image input, and adaptive modes (tutor, organizer, report).
+    Protected with verify_app_token (401 without auth).
+    """
+    clean_msg = (req.message or "").strip()
+    if not clean_msg and not req.image_base64:
+        raise HTTPException(status_code=400, detail="Сообщение или изображение обязательно для отправки")
+
+    user = get_current_user(request)
+    loop = asyncio.get_running_loop()
+    gemini_svc = get_gemini_service()
+
+    # Tool 1: get_schedule
+    def get_schedule_tool(day: Optional[int] = None) -> Dict[str, Any]:
+        raw = get_cached_raw_schedule()
+        today = date.today()
+        parity = get_week_parity(today)
+        if day is None:
+            wd = today.weekday() + 1
+            day = 1 if wd > 6 else wd
+        day_raw = raw.get(str(day), [])
+        parsed = [Lesson.from_raw_dict(item) for item in day_raw]
+        filtered = [
+            l for l in parsed
+            if l.is_for_subgroup(settings.kai_subgroup) and l.is_active_on_parity(parity)
+        ]
+        merged = merge_and_deduplicate_lessons(filtered)
+        lessons_list = []
+        for l in merged:
+            lessons_list.append({
+                "discipl_name": l.discipl_name,
+                "discipl_type": l.discipl_type,
+                "day_time": l.day_time,
+                "aud_num": l.aud_num,
+                "build_num": l.build_num,
+                "prepod_name": l.prepod_name,
+            })
+        return {
+            "day": day,
+            "day_name": RUSSIAN_WEEKDAYS.get(day, "День"),
+            "week_parity": parity,
+            "lessons": lessons_list,
+        }
+
+    # Tool 2: get_pending_tasks
+    def get_pending_tasks_tool(subject: Optional[str] = None) -> List[Dict[str, Any]]:
+        async def _fetch():
+            async with async_session() as session:
+                tasks = await get_tasks(session, status="todo", owner_id=user.id)
+                res = []
+                for t in tasks:
+                    s_name = t.subject.name if t.subject else ""
+                    if subject and subject.lower() not in s_name.lower():
+                        continue
+                    res.append({
+                        "id": t.id,
+                        "title": t.title,
+                        "subject": s_name,
+                        "deadline": t.deadline.isoformat() if t.deadline else None,
+                        "task_type": t.task_type,
+                    })
+                return res
+        fut = asyncio.run_coroutine_threadsafe(_fetch(), loop)
+        return fut.result()
+
+    # Tool 3: add_new_task
+    def add_new_task_tool(subject_name: str, title: str, deadline: Optional[str] = None, details: Optional[str] = None) -> Dict[str, Any]:
+        async def _create():
+            dl_dt = None
+            if deadline:
+                try:
+                    dl_dt = datetime.fromisoformat(deadline)
+                except Exception:
+                    dl_dt = resolve_relative_deadline(deadline)
+            async with async_session() as session:
+                subj = await get_or_create_subject(session, name=subject_name.strip())
+                new_t = await create_task(
+                    session=session,
+                    subject_id=subj.id,
+                    title=title.strip(),
+                    task_type="лабораторная" if "лаб" in title.lower() else "задание",
+                    deadline=dl_dt,
+                    status="todo",
+                    source="ai_studio",
+                    details=details or "",
+                    owner_id=user.id,
+                )
+                return {
+                    "id": new_t.id,
+                    "title": new_t.title,
+                    "subject": subj.name,
+                    "deadline": new_t.deadline.isoformat() if new_t.deadline else (deadline or None),
+                    "status": new_t.status,
+                }
+        fut = asyncio.run_coroutine_threadsafe(_create(), loop)
+        return fut.result()
+
+    # Tool 4: toggle_task_status
+    def toggle_task_status_tool(task_id: int, completed: bool = True) -> Dict[str, Any]:
+        async def _toggle():
+            async with async_session() as session:
+                t = await get_task_by_id(session, task_id)
+                if not t:
+                    return {"id": task_id, "error": "Task not found"}
+                new_st = "done" if completed else "todo"
+                updated = await update_task_status(session, task_id=task_id, status=new_st, owner_id=user.id if not user.is_admin else None)
+                return {
+                    "id": updated.id,
+                    "title": updated.title,
+                    "status": updated.status,
+                    "subject": updated.subject.name if updated.subject else "",
+                }
+        fut = asyncio.run_coroutine_threadsafe(_toggle(), loop)
+        return fut.result()
+
+    tool_handlers = {
+        "get_schedule": get_schedule_tool,
+        "get_pending_tasks": get_pending_tasks_tool,
+        "add_new_task": add_new_task_tool,
+        "toggle_task_status": toggle_task_status_tool,
+    }
+
+    # Format history
+    hist_dicts = []
+    if req.history:
+        for h in req.history:
+            hist_dicts.append({"role": h.role, "content": h.content})
+
+    mode = (req.mode or "tutor").strip().lower()
+    if mode not in ("tutor", "organizer", "report"):
+        mode = "tutor"
+
+    chat_result = await asyncio.to_thread(
+        gemini_svc.chat,
+        message=clean_msg,
+        history=hist_dicts,
+        image_base64=req.image_base64,
+        mode=mode,
+        tool_handlers=tool_handlers,
+    )
+
+    return {
+        "response": chat_result["response"],
+        "actions": chat_result.get("actions", []),
+        "mode": mode,
+        "metadata": chat_result.get("metadata", {}),
+    }
 
 
 @api_router.post("/ai/parse-task")

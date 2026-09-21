@@ -1572,44 +1572,261 @@ function goToTasksForDiscipline(disciplName) {
 }
 
 // -------------------------------------------------------------
-// TAB 3: AI ASSISTANT STUDIO (GEMINI)
 // -------------------------------------------------------------
-// TAB 3: STUDENT OS AI (FLOATING GLASS COMPOSER & PREVIEW SHEET)
+// TAB 3: GOOGLE AI STUDIO (WORKSPACE, FUNCTION CALLING & CHAT)
 // -------------------------------------------------------------
+window.copyCodeToClipboard = function(btn) {
+  const wrapper = btn.closest('.code-block-wrapper');
+  if (wrapper) {
+    const codeEl = wrapper.querySelector('code');
+    if (codeEl) {
+      navigator.clipboard.writeText(codeEl.innerText).then(() => {
+        const orig = btn.innerText;
+        btn.innerText = 'Скопировано! ✅';
+        setTimeout(() => { btn.innerText = orig; }, 2000);
+      });
+    }
+  }
+};
+
+function renderMarkdown(md) {
+  if (!md) return '';
+  let html = escapeHtml(md);
+
+  // 1. Code blocks ```lang\ncode\n```
+  html = html.replace(/```([a-zA-Z0-9_\-\+]*)\n([\s\S]*?)```/g, (match, lang, code) => {
+    const l = lang ? lang.trim() : 'code';
+    return `<div class="code-block-wrapper"><div class="code-block-header"><span class="code-lang">${l}</span><button class="code-copy-btn glass-control" onclick="copyCodeToClipboard(this)">Копировать код</button></div><pre><code class="language-${l}">${code.trim()}</code></pre></div>`;
+  });
+
+  // 2. Inline code `code`
+  html = html.replace(/`([^`\n]+)`/g, '<code class="inline-code">$1</code>');
+
+  // 3. Headers
+  html = html.replace(/^### (.*$)/gim, '<h3>$1</h3>');
+  html = html.replace(/^## (.*$)/gim, '<h2>$1</h2>');
+  html = html.replace(/^# (.*$)/gim, '<h1>$1</h1>');
+
+  // 4. Bold and italics
+  html = html.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
+  html = html.replace(/\*([^*]+)\*/g, '<em>$1</em>');
+
+  // 5. Unordered lists
+  html = html.replace(/^\s*[\-\*]\s+(.*$)/gim, '<li>$1</li>');
+  html = html.replace(/(<li>.*<\/li>)/gims, '<ul>$1</ul>');
+
+  // 6. Ordered lists
+  html = html.replace(/^\s*\d+\.\s+(.*$)/gim, '<li class="ol-item">$1</li>');
+
+  // 7. Paragraphs
+  html = html.replace(/\n\n/g, '</p><p>');
+  html = html.replace(/\n/g, '<br/>');
+
+  return '<p>' + html + '</p>';
+}
+
+function renderActionWidget(action) {
+  if (!action) return '';
+  if (action.tool === 'get_schedule') {
+    const d = action.data || {};
+    const lessons = d.lessons || [];
+    let lessonsHtml = '';
+    lessons.forEach((l, idx) => {
+      lessonsHtml += `
+        <div class="action-widget-row">
+          <span class="action-time">${escapeHtml(l.day_time || '—')}</span>
+          <div class="action-lesson-info">
+            <strong>${escapeHtml(l.discipl_name || l.subject || 'Пара')}</strong>
+            <span class="action-sub">${escapeHtml(l.discipl_type || '')} · ауд. ${escapeHtml(l.aud_num || '')}</span>
+          </div>
+        </div>
+      `;
+    });
+    return `
+      <div class="action-widget-card glass-card">
+        <div class="action-widget-header">
+          <span class="action-widget-badge">📅 Расписание занятий</span>
+          <span class="action-widget-tag">${escapeHtml(d.day_name || 'Расписание')}</span>
+        </div>
+        <div class="action-widget-body">
+          ${lessonsHtml || '<div class="action-empty">В этот день занятий нет</div>'}
+        </div>
+        <div class="action-widget-footer">
+          <button class="action-widget-btn glass-control" onclick="switchTab('more')">
+            <span>Открыть в расписании</span>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"></polyline></svg>
+          </button>
+        </div>
+      </div>
+    `;
+  } else if (action.tool === 'add_new_task') {
+    const d = action.data || {};
+    return `
+      <div class="action-widget-card glass-card action-card-success">
+        <div class="action-widget-header">
+          <span class="action-widget-badge">✅ Создана новая задача</span>
+          <span class="action-widget-tag">${escapeHtml(d.subject || '')}</span>
+        </div>
+        <div class="action-widget-body">
+          <div class="action-task-title"><strong>${escapeHtml(d.title || 'Лабораторная работа')}</strong></div>
+          ${d.deadline ? `<div class="action-task-deadline">⏰ Срок: ${escapeHtml(d.deadline)}</div>` : ''}
+        </div>
+        <div class="action-widget-footer">
+          <button class="action-widget-btn glass-control" onclick="switchTab('tasks')">
+            <span>Перейти к заданиям</span>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"></polyline></svg>
+          </button>
+        </div>
+      </div>
+    `;
+  } else if (action.tool === 'get_pending_tasks') {
+    const tasks = Array.isArray(action.data) ? action.data : [];
+    let tasksHtml = '';
+    tasks.slice(0, 5).forEach((t) => {
+      tasksHtml += `
+        <div class="action-widget-row">
+          <span class="action-bullet">📌</span>
+          <div class="action-lesson-info">
+            <strong>${escapeHtml(t.title || '')}</strong>
+            <span class="action-sub">${escapeHtml(t.subject || '')} · ${escapeHtml(t.deadline || 'без дедлайна')}</span>
+          </div>
+        </div>
+      `;
+    });
+    return `
+      <div class="action-widget-card glass-card">
+        <div class="action-widget-header">
+          <span class="action-widget-badge">⚡ Несданные задания</span>
+          <span class="action-widget-tag">${tasks.length} задач</span>
+        </div>
+        <div class="action-widget-body">
+          ${tasksHtml || '<div class="action-empty">Все задания выполнены!</div>'}
+        </div>
+        <div class="action-widget-footer">
+          <button class="action-widget-btn glass-control" onclick="switchTab('tasks')">
+            <span>Перейти к списку задач</span>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"></polyline></svg>
+          </button>
+        </div>
+      </div>
+    `;
+  } else if (action.tool === 'toggle_task_status') {
+    const d = action.data || {};
+    return `
+      <div class="action-widget-card glass-card action-card-success">
+        <div class="action-widget-header">
+          <span class="action-widget-badge">🎉 Статус задачи обновлен</span>
+          <span class="action-widget-tag">#${escapeHtml(String(d.id || ''))}</span>
+        </div>
+        <div class="action-widget-body">
+          <strong>${escapeHtml(d.title || 'Лабораторная работа')}</strong>
+          <div class="action-sub" style="margin-top: 4px;">Статус: <strong>${d.status === 'done' ? 'Сдано' : 'К выполнению'}</strong></div>
+        </div>
+        <div class="action-widget-footer">
+          <button class="action-widget-btn glass-control" onclick="switchTab('tasks')">
+            <span>Посмотреть в заданиях</span>
+          </button>
+        </div>
+      </div>
+    `;
+  }
+  return '';
+}
+
 function setupGeminiEvents() {
   const geminiText = document.getElementById('gemini-text-input');
   const geminiMicBtn = document.getElementById('gemini-mic-btn');
   const geminiSubmitBtn = document.getElementById('gemini-submit-btn');
   const geminiLoader = document.getElementById('gemini-shimmer-loader');
   const geminiResult = document.getElementById('gemini-result-card');
+  const aiChatSendBtn = document.getElementById('ai-chat-send-btn');
+  const aiAttachBtn = document.getElementById('ai-attach-btn');
+  const aiFileInput = document.getElementById('ai-file-input');
+  const aiPreviewBar = document.getElementById('ai-attachment-preview');
+  const aiPreviewThumb = document.getElementById('ai-attachment-thumb');
+  const aiRemoveAttachBtn = document.getElementById('ai-remove-attachment-btn');
 
-  // Auto-resize textarea as user types
+  let attachedImageBase64 = null;
+  state.aiStudioMode = localStorage.getItem('kai_ai_studio_mode') || 'tutor';
+
+  // 1. Mode Switcher Chips
+  const modeChips = document.querySelectorAll('.ai-mode-chip');
+  modeChips.forEach((chip) => {
+    if (chip.dataset.mode === state.aiStudioMode) {
+      modeChips.forEach(c => c.classList.remove('active'));
+      chip.classList.add('active');
+    }
+    chip.addEventListener('click', () => {
+      modeChips.forEach(c => c.classList.remove('active'));
+      chip.classList.add('active');
+      const mode = chip.dataset.mode || 'tutor';
+      state.aiStudioMode = mode;
+      localStorage.setItem('kai_ai_studio_mode', mode);
+
+      const modeBadge = document.getElementById('ai-active-mode-badge');
+      const modeLabels = { tutor: '🎓 Репетитор', organizer: '⚡ Органайзер', report: '📝 Генератор отчетов' };
+      if (modeBadge) modeBadge.textContent = modeLabels[mode] || '🎓 Репетитор';
+      showToast('Режим: ' + (modeLabels[mode] || mode));
+    });
+  });
+
+  // 2. Auto-resize textarea as user types
   if (geminiText) {
     const autoResize = () => {
       geminiText.style.height = 'auto';
-      geminiText.style.height = Math.max(72, geminiText.scrollHeight) + 'px';
+      geminiText.style.height = Math.min(140, Math.max(38, geminiText.scrollHeight)) + 'px';
       if (geminiSubmitBtn) {
-        geminiSubmitBtn.disabled = !geminiText.value.trim();
+        geminiSubmitBtn.disabled = !geminiText.value.trim() && !attachedImageBase64;
       }
     };
     geminiText.addEventListener('input', autoResize);
+
+    // Enter without shift sends AI Studio chat message
+    geminiText.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' && !e.shiftKey) {
+        e.preventDefault();
+        sendAiStudioMessage();
+      }
+    });
   }
 
-  // Quick suggestion chips
-  document.querySelectorAll('.ai-quick-chip, .gemini-suggest-chip').forEach((chip) => {
+  // 3. Image File Attachment
+  if (aiAttachBtn && aiFileInput) {
+    aiAttachBtn.addEventListener('click', () => aiFileInput.click());
+    aiFileInput.addEventListener('change', (e) => {
+      const file = e.target.files && e.target.files[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = (evt) => {
+        attachedImageBase64 = evt.target.result;
+        if (aiPreviewThumb) aiPreviewThumb.src = attachedImageBase64;
+        if (aiPreviewBar) aiPreviewBar.style.display = 'flex';
+        showToast('Изображение прикреплено к сообщению');
+      };
+      reader.readAsDataURL(file);
+    });
+  }
+
+  if (aiRemoveAttachBtn) {
+    aiRemoveAttachBtn.addEventListener('click', () => {
+      attachedImageBase64 = null;
+      if (aiFileInput) aiFileInput.value = '';
+      if (aiPreviewBar) aiPreviewBar.style.display = 'none';
+      showToast('Вложение удалено');
+    });
+  }
+
+  // 4. Quick Suggestion / Prompt Chips
+  document.querySelectorAll('.ai-prompt-pill, .ai-quick-chip, .gemini-suggest-chip').forEach((chip) => {
     chip.addEventListener('click', () => {
       const prompt = chip.dataset.prompt;
-      if (geminiText && prompt) {
-        geminiText.value = prompt;
-        geminiText.style.height = 'auto';
-        geminiText.style.height = Math.max(72, geminiText.scrollHeight) + 'px';
-        geminiText.focus();
-        if (geminiSubmitBtn) geminiSubmitBtn.disabled = false;
+      if (prompt) {
+        sendAiStudioMessage(prompt);
       }
     });
   });
 
-  // Web Speech API for voice dictation
+  // 5. Web Speech API for voice dictation
   const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
   let recognition = null;
   let isListening = false;
@@ -1632,7 +1849,7 @@ function setupGeminiEvents() {
         if (geminiText) {
           geminiText.value = geminiText.value ? geminiText.value + ' ' + transcript : transcript;
           geminiText.style.height = 'auto';
-          geminiText.style.height = Math.max(72, geminiText.scrollHeight) + 'px';
+          geminiText.style.height = Math.max(42, geminiText.scrollHeight) + 'px';
         }
         if (geminiSubmitBtn) geminiSubmitBtn.disabled = false;
         showToast('Распознано: ' + transcript);
@@ -1666,6 +1883,141 @@ function setupGeminiEvents() {
     geminiMicBtn.addEventListener('click', () => {
       showToast('Голосовой ввод не поддерживается данным браузером');
     });
+  }
+
+  // 6. Send AI Studio Message Handler (POST /api/ai/chat)
+  async function sendAiStudioMessage(customText) {
+    const text = (customText !== undefined ? customText : (geminiText ? geminiText.value : '')).trim();
+    if (!text && !attachedImageBase64) {
+      showToast('Введите вопрос или прикрепите фото');
+      return;
+    }
+
+    const messagesContainer = document.getElementById('ai-chat-messages');
+    const shimmerLoader = document.getElementById('gemini-shimmer-loader');
+    const sendBtn = document.getElementById('ai-chat-send-btn');
+    const sendIcon = document.getElementById('ai-send-icon');
+    const sendSpinner = document.getElementById('ai-send-spinner');
+
+    // 1. Append User Message
+    if (messagesContainer) {
+      let imgThumbHtml = '';
+      if (attachedImageBase64) {
+        imgThumbHtml = `<div class="user-attached-thumb"><img src="${attachedImageBase64}" alt="Прикрепленное фото" class="user-msg-img" /></div>`;
+      }
+      const userMsgEl = document.createElement('div');
+      userMsgEl.className = 'ai-msg-bubble ai-msg-user';
+      userMsgEl.innerHTML = `
+        <div class="ai-msg-content">
+          <div class="ai-msg-body">
+            ${imgThumbHtml}
+            <p>${escapeHtml(text)}</p>
+          </div>
+        </div>
+      `;
+      messagesContainer.appendChild(userMsgEl);
+      messagesContainer.scrollTop = messagesContainer.scrollHeight;
+    }
+
+    // Save image & clear input
+    const curImg = attachedImageBase64;
+    attachedImageBase64 = null;
+    if (aiFileInput) aiFileInput.value = '';
+    if (aiPreviewBar) aiPreviewBar.style.display = 'none';
+    if (geminiText) {
+      geminiText.value = '';
+      geminiText.style.height = 'auto';
+    }
+
+    // Show loading state
+    if (shimmerLoader) shimmerLoader.style.display = 'block';
+    if (sendBtn) sendBtn.disabled = true;
+    if (sendIcon) sendIcon.style.display = 'none';
+    if (sendSpinner) sendSpinner.style.display = 'inline-block';
+
+    try {
+      const payload = {
+        message: text,
+        history: state.aiChatHistory || [],
+        image_base64: curImg,
+        mode: state.aiStudioMode || 'tutor',
+      };
+
+      const res = await apiFetch(API_BASE + '/api/ai/chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+
+      if (!res.ok) {
+        const errData = await res.json().catch(() => ({}));
+        throw new Error(errData.detail || 'Не удалось получить ответ от AI Studio');
+      }
+
+      const data = await res.json();
+
+      // 2. Append Assistant Message with Markdown & Action Widgets
+      if (messagesContainer) {
+        let actionsHtml = '';
+        if (data.actions && data.actions.length > 0) {
+          actionsHtml = data.actions.map(act => renderActionWidget(act)).join('');
+        }
+
+        const modeLabels = { tutor: '🎓 Репетитор', organizer: '⚡ Органайзер', report: '📝 Генератор отчетов' };
+        const modeBadge = modeLabels[data.mode] || '🎓 Репетитор';
+
+        const assistantMsgEl = document.createElement('div');
+        assistantMsgEl.className = 'ai-msg-bubble ai-msg-assistant glass-card';
+        assistantMsgEl.innerHTML = `
+          <div class="ai-msg-avatar">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
+              <path d="M12 2l2.4 7.2L22 12l-7.6 2.8L12 22l-2.4-7.2L2 12l7.6-2.8z"/>
+            </svg>
+          </div>
+          <div class="ai-msg-content">
+            <div class="ai-msg-header">
+              <span class="ai-msg-author">Google AI Studio</span>
+              <span class="ai-msg-mode-badge">${modeBadge}</span>
+            </div>
+            <div class="ai-msg-body markdown-rendered">
+              ${renderMarkdown(data.response)}
+            </div>
+            ${actionsHtml ? `<div class="ai-msg-actions-cluster">${actionsHtml}</div>` : ''}
+          </div>
+        `;
+        messagesContainer.appendChild(assistantMsgEl);
+        messagesContainer.scrollTop = messagesContainer.scrollHeight;
+      }
+
+      if (!state.aiChatHistory) state.aiChatHistory = [];
+      state.aiChatHistory.push({ role: 'user', content: text });
+      state.aiChatHistory.push({ role: 'model', content: data.response });
+      if (state.aiChatHistory.length > 20) state.aiChatHistory = state.aiChatHistory.slice(-20);
+
+    } catch (err) {
+      console.error('AI Studio error:', err);
+      showToast(err.message || 'Ошибка AI Studio');
+      if (messagesContainer) {
+        const errEl = document.createElement('div');
+        errEl.className = 'ai-msg-bubble ai-msg-assistant glass-card ai-msg-error';
+        errEl.innerHTML = `
+          <div class="ai-msg-body">
+            <p>⚠️ ${escapeHtml(err.message || 'Произошла ошибка при обработке запроса.')}</p>
+          </div>
+        `;
+        messagesContainer.appendChild(errEl);
+        messagesContainer.scrollTop = messagesContainer.scrollHeight;
+      }
+    } finally {
+      if (shimmerLoader) shimmerLoader.style.display = 'none';
+      if (sendBtn) sendBtn.disabled = false;
+      if (sendIcon) sendIcon.style.display = 'block';
+      if (sendSpinner) sendSpinner.style.display = 'none';
+    }
+  }
+
+  if (aiChatSendBtn) {
+    aiChatSendBtn.addEventListener('click', () => sendAiStudioMessage());
   }
 
   // Parse task with Student OS AI (Structured Preview & Confirm Flow)

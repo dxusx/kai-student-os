@@ -290,76 +290,151 @@
     </section>
 
 
-    <!-- ==================== TAB 3: AI АССИСТЕНТ (STUDENT OS AI) ==================== -->
-    <section id="view-ai" class="app-view" role="region" aria-label="AI Ассистент">
+    <!-- ==================== TAB 3: AI STUDIO (GOOGLE GEMINI WORKSPACE) ==================== -->
+    <section id="view-ai" class="app-view" role="region" aria-label="Google AI Studio">
       
-      <!-- Floating Glass Composer -->
-      <div class="ai-floating-composer glass-floating">
-        <div class="composer-eyebrow">
-          <svg class="sparkle-svg" width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
-            <path d="M12 2l2.4 7.2L22 12l-7.6 2.8L12 22l-2.4-7.2L2 12l7.6-2.8z"/>
-          </svg>
-          <span class="eyebrow-text">Student OS AI</span>
+      <!-- 1. AI Studio Header & Mode Switcher -->
+      <div class="ai-studio-top-bar glass-subtle">
+        <div class="ai-studio-brand">
+          <div class="ai-sparkle-pill">
+            <svg class="sparkle-svg" width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+              <path d="M12 2l2.4 7.2L22 12l-7.6 2.8L12 22l-2.4-7.2L2 12l7.6-2.8z"/>
+            </svg>
+            <span class="ai-studio-brand-title">AI Studio</span>
+          </div>
+          <span class="ai-studio-tag">Группа 5108</span>
         </div>
 
-        <h2 class="composer-main-heading">Что произошло?</h2>
-
-        <div class="composer-input-area">
-          <textarea id="gemini-text-input" class="composer-textarea" rows="3" placeholder="Вставь сообщение старосты или надиктуй задачу..."></textarea>
+        <!-- Mode Switcher Chips -->
+        <div class="ai-mode-switcher-row" id="ai-mode-switcher" role="tablist" aria-label="Режимы AI Studio">
+          <button class="ai-mode-chip glass-control active" data-mode="tutor" role="tab" aria-selected="true" title="Глубокие объяснения тем, примеры кода, разбор лабораторных">
+            <span class="chip-icon">🎓</span>
+            <span class="chip-label">Репетитор</span>
+          </button>
+          <button class="ai-mode-chip glass-control" data-mode="organizer" role="tab" aria-selected="false" title="Фокус на дедлайнах, оптимизации времени, расписании и долгах">
+            <span class="chip-icon">⚡</span>
+            <span class="chip-label">Органайзер</span>
+          </button>
+          <button class="ai-mode-chip glass-control" data-mode="report" role="tab" aria-selected="false" title="Структурирование отчетов по лабам, формулировка выводов по ГОСТ">
+            <span class="chip-icon">📝</span>
+            <span class="chip-label">Генератор отчетов</span>
+          </button>
         </div>
+      </div>
 
-        <div class="composer-actions-bar">
-          <div class="composer-tip-text">Интеллектуальный разбор в расписание и задачи</div>
-          <div class="composer-buttons-cluster">
-            <button id="gemini-mic-btn" class="composer-circle-btn glass-control" title="Голосовой ввод" aria-label="Голосовой ввод">
-              <span class="mic-glow-ring"></span>
-              <svg class="mic-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
-                <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/>
-                <path d="M19 10v2a7 7 0 0 1-14 0v-2"/>
-                <line x1="12" y1="19" x2="12" y2="23"/>
-                <line x1="8" y1="23" x2="16" y2="23"/>
-              </svg>
-            </button>
+      <!-- 2. Quick Prompts Bar (4 Pills) -->
+      <div class="ai-quick-prompts-carousel" id="ai-quick-prompts">
+        <button class="ai-prompt-pill glass-control" data-prompt="Какие пары у меня во вторник?">
+          <span>📅 Какие пары во вторник?</span>
+        </button>
+        <button class="ai-prompt-pill glass-control" data-prompt="Покажи мои горящие дедлайны и несданные задачи">
+          <span>⚡ Мои горящие дедлайны</span>
+        </button>
+        <button class="ai-prompt-pill glass-control" data-prompt="Помоги оформить отчет по лабораторной работе по ГОСТ">
+          <span>📝 Оформить отчет по лабе</span>
+        </button>
+        <button class="ai-prompt-pill glass-control" data-prompt="Объясни тему простыми словами и приведи понятный пример кода">
+          <span>💡 Объясни тему простыми словами</span>
+        </button>
+      </div>
 
-            <button id="gemini-submit-btn" class="composer-submit-btn glass-control" title="Распознать" aria-label="Распознать">
-              <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round">
-                <line x1="12" y1="19" x2="12" y2="5"></line>
-                <polyline points="5 12 12 5 19 12"></polyline>
-              </svg>
-            </button>
+      <!-- 3. AI Studio Messages Stream -->
+      <div class="ai-studio-messages-container" id="ai-chat-messages">
+        <!-- Initial Welcome Message from Assistant -->
+        <div class="ai-msg-bubble ai-msg-assistant glass-card">
+          <div class="ai-msg-avatar">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
+              <path d="M12 2l2.4 7.2L22 12l-7.6 2.8L12 22l-2.4-7.2L2 12l7.6-2.8z"/>
+            </svg>
+          </div>
+          <div class="ai-msg-content">
+            <div class="ai-msg-header">
+              <span class="ai-msg-author">Google AI Studio</span>
+              <span class="ai-msg-mode-badge" id="ai-active-mode-badge">🎓 Репетитор</span>
+            </div>
+            <div class="ai-msg-body">
+              <p>Привет! Я твой персональный AI-репетитор и ассистент в <strong>KAI Student OS</strong> (группа 5108, 2 подгруппа).</p>
+              <p>Я умею автономно проверять расписание, отслеживать дедлайны, создавать задачи и помогать с кодом и отчетами.</p>
+              <p>Задай вопрос, выбери подсказку выше или прикрепи фото задания через 📎!</p>
+            </div>
           </div>
         </div>
       </div>
 
-      <!-- Quick Suggestions (less visually heavy glass controls) -->
-      <div class="ai-quick-suggestions" id="ai-quick-suggestions">
-        <button class="ai-quick-chip glass-control" data-prompt="К следующей среде по физике сделать отчет по лабе 2 и распечатать титульник в 301 аудитории">
-          <svg class="chip-spark-svg" width="11" height="11" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2l2.4 7.2L22 12l-7.6 2.8L12 22l-2.4-7.2L2 12l7.6-2.8z"/></svg>
-          <span>Физика: лаба 2</span>
-        </button>
-        <button class="ai-quick-chip glass-control" data-prompt="До пятницы сдать практическую работу 3 по высшей математике в 301 аудитории">
-          <svg class="chip-spark-svg" width="11" height="11" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2l2.4 7.2L22 12l-7.6 2.8L12 22l-2.4-7.2L2 12l7.6-2.8z"/></svg>
-          <span>Вышмат: ПЗ 3</span>
-        </button>
-        <button class="ai-quick-chip glass-control" data-prompt="Подготовить доклад по основам российской государственности, взять 2 файла">
-          <svg class="chip-spark-svg" width="11" height="11" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2l2.4 7.2L22 12l-7.6 2.8L12 22l-2.4-7.2L2 12l7.6-2.8z"/></svg>
-          <span>Доклад ОРГ</span>
-        </button>
-      </div>
-
-      <!-- Shimmer Wave Loader -->
+      <!-- 4. Shimmer / Typing Indicator -->
       <div id="gemini-shimmer-loader" class="gemini-shimmer-card glass-subtle" style="display: none;">
         <div class="shimmer-wave-bar"></div>
         <div class="shimmer-content">
           <svg class="gemini-spin-icon" width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
             <path d="M12 2l2.4 7.2L22 12l-7.6 2.8L12 22l-2.4-7.2L2 12l7.6-2.8z"/>
           </svg>
-          <span>Student OS AI анализирует контекст и расписание...</span>
+          <span id="ai-shimmer-text">AI Studio анализирует контекст и выполняет инструменты...</span>
         </div>
       </div>
 
-      <!-- Structured Preview in Glass Sheet -->
+      <!-- 5. Structured Preview in Glass Sheet (Used by task parser and test_ai_013/014) -->
       <div id="gemini-result-card" class="gemini-result-wrapper" style="display: none;"></div>
+
+      <!-- 6. Floating Glass Input Bar with Attachment Preview -->
+      <div class="ai-composer-dock glass-floating">
+        
+        <!-- Image Attachment Preview Thumbnail -->
+        <div id="ai-attachment-preview" class="ai-attachment-preview-bar" style="display: none;">
+          <div class="attachment-thumb-wrap">
+            <img id="ai-attachment-thumb" src="" alt="Прикрепленное изображение" class="attachment-thumb-img">
+            <button id="ai-remove-attachment-btn" class="attachment-remove-btn" title="Удалить изображение" aria-label="Удалить изображение">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M18 6L6 18M6 6l12 12"/></svg>
+            </button>
+          </div>
+          <span class="attachment-name" id="ai-attachment-name">Изображение прикреплено</span>
+        </div>
+
+        <div class="composer-main-row">
+          <!-- File Attachment Picker Button -->
+          <input type="file" id="ai-file-input" accept="image/*" style="display: none;" aria-label="Выбрать изображение">
+          <button id="ai-attach-btn" class="composer-circle-btn glass-control" title="Прикрепить изображение конспекта/задания" aria-label="Прикрепить изображение">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/>
+            </svg>
+          </button>
+
+          <!-- Voice Dictation Button (Web Speech API) -->
+          <button id="gemini-mic-btn" class="composer-circle-btn glass-control" title="Голосовой ввод" aria-label="Голосовой ввод">
+            <span class="mic-glow-ring"></span>
+            <svg class="mic-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/>
+              <path d="M19 10v2a7 7 0 0 1-14 0v-2"/>
+              <line x1="12" y1="19" x2="12" y2="23"/>
+              <line x1="8" y1="23" x2="16" y2="23"/>
+            </svg>
+          </button>
+
+          <!-- Auto-expanding Textarea (retains id="gemini-text-input" for QA compatibility) -->
+          <div class="composer-input-area">
+            <textarea id="gemini-text-input" class="composer-textarea" rows="1" placeholder="Спроси о расписании, задачах или надиктуй..."></textarea>
+          </div>
+
+          <!-- Buttons Cluster -->
+          <div class="composer-buttons-cluster">
+            <!-- Quick Parse Button (calls /api/ai/parse-task, tested in AI-013/014) -->
+            <button id="gemini-submit-btn" class="composer-circle-btn glass-control" title="Распознать как задачу в расписание" aria-label="Распознать в задачу">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/>
+                <rect x="8" y="2" width="8" height="4" rx="1" ry="1"/>
+              </svg>
+            </button>
+
+            <!-- AI Studio Send Button (calls /api/ai/chat) -->
+            <button id="ai-chat-send-btn" class="composer-submit-btn glass-control" title="Отправить в AI Studio" aria-label="Отправить в AI Studio">
+              <span class="send-spinner" id="ai-send-spinner" style="display: none;"></span>
+              <svg id="ai-send-icon" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round">
+                <line x1="22" y1="2" x2="11" y2="13"></line>
+                <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
+              </svg>
+            </button>
+          </div>
+        </div>
+      </div>
 
     </section>
 
