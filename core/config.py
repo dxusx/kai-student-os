@@ -19,6 +19,7 @@ class Settings(BaseSettings):
     kai_group: str = Field(default="5108", alias="KAI_GROUP")
     kai_subgroup: int = Field(default=2, alias="KAI_SUBGROUP")
     kai_api_url: str = Field(default="https://kai.ru/web/studentu/raspisanie1", alias="KAI_API_URL")
+    kapipara_api_url: str = Field(default="https://api.capypara.ru/api", alias="KAPIPARA_API_URL")
 
     tg_api_base_url: Optional[str] = Field(default=None, alias="TG_API_BASE_URL")
 

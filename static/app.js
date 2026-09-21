@@ -1036,6 +1036,7 @@ function renderTodaySchedulePeek() {
       '<div class="timeline-info-col">' +
         '<div class="timeline-lesson-title">' + escapeHtml(l.discipl_name) + '</div>' +
         '<div class="timeline-meta-row">' +
+          (l.is_changed ? '<span class="badge-changed" title="Оперативная замена или перенос пары">⚡ Замена/Перенос</span><span>·</span>' : '') +
           '<span>' + escapeHtml(l.discipl_type || 'Пара') + '</span>' +
           '<span>·</span>' +
           '<span>' + chip.label + '</span>' +
@@ -2494,7 +2495,7 @@ function renderTimeline(lessons) {
         '</button>'
       : '';
 
-    html += '<div class="timeline-event-row">' +
+    html += '<div class="timeline-event-row' + (lesson.is_changed ? ' is-changed' : '') + '">' +
       '<div class="timeline-time-col">' +
         '<span class="timeline-time-start">' + escapeHtml(timeInfo.startStr) + '</span>' +
         '<span class="timeline-time-end">' + escapeHtml(timeInfo.endStr) + '</span>' +
@@ -2504,6 +2505,7 @@ function renderTimeline(lessons) {
         '<div class="timeline-event-header">' +
           '<h4 class="timeline-event-title">' + escapeHtml(lesson.discipl_name) + '</h4>' +
           '<div class="timeline-chips-row">' +
+            (lesson.is_changed ? '<span class="building-badge badge-changed" title="Оперативная замена или перенос пары">⚡ Замена/Перенос</span>' : '') +
             '<span class="building-badge ' + chip.cls + '">' + chip.label + '</span>' +
             (lesson.discipl_type ? '<span class="building-badge">' + escapeHtml(lesson.discipl_type) + '</span>' : '') +
             homeworkBadge +

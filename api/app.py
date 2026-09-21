@@ -71,6 +71,10 @@ from services.kai_api import (
     merge_and_deduplicate_lessons,
     KaiApiError,
 )
+from services.para_api import (
+    KapiparaClient,
+    KapiparaApiError,
+)
 
 logger = logging.getLogger("kai_assistant.api")
 
@@ -266,9 +270,10 @@ async def health_check():
     return {"status": "ok", "app": "KAI Assistant 5108"}
 
 STATIC_DIR = Path(__file__).resolve().parent.parent / "static"
+REAL_KAPIPARA_FILE = Path(__file__).resolve().parent.parent / "data" / "real_kapipara_5108.json"
 REAL_SCHEDULE_FILE = Path(__file__).resolve().parent.parent / "real_schedule_5108.json"
 
-# In-memory schedule cache to avoid spamming kai.ru
+# In-memory schedule cache to avoid spamming upstream APIs
 _schedule_cache: Dict[str, Any] = {
     "data": None,
     "timestamp": None,
@@ -300,7 +305,13 @@ def parse_task_attachments(details: Optional[str]) -> List[Dict[str, str]]:
 
 
 def get_cached_raw_schedule() -> Dict[str, List[Dict[str, Any]]]:
-    """Retrieve schedule from KAI API or fallback to local real_schedule_5108.json."""
+    """
+    Retrieve schedule from Kapipara API with fallback cascade:
+    1. Kapipara API (live)
+    2. Legacy KAI API (live fallback)
+    3. Local data/real_kapipara_5108.json backup
+    4. Local real_schedule_5108.json backup
+    """
     now = datetime.now()
     if (
         _schedule_cache["data"] is not None
@@ -309,28 +320,58 @@ def get_cached_raw_schedule() -> Dict[str, List[Dict[str, Any]]]:
     ):
         return _schedule_cache["data"]
 
-    client = KaiApiClient(base_url=settings.kai_api_url, timeout=6)
+    # 1. Primary: Kapipara API
     try:
-        group_id = client.search_group_id(settings.kai_group)
-        raw_schedule = client.get_schedule(group_id)
+        para_client = KapiparaClient(base_url=settings.kapipara_api_url, timeout=6)
+        raw_schedule = para_client.get_schedule_grid(settings.kai_group, fallback_on_error=False)
+        _schedule_cache["data"] = raw_schedule
+        _schedule_cache["timestamp"] = now
+        record_successful_sync(source="kapipara_api")
+        return raw_schedule
+    except Exception as pe:
+        logger.warning("Could not fetch live schedule from Kapipara API (%s), trying KAI API fallback.", pe)
+
+    # 2. Secondary fallback: Legacy KAI API
+    try:
+        kai_client = KaiApiClient(base_url=settings.kai_api_url, timeout=6)
+        group_id = kai_client.search_group_id(settings.kai_group)
+        raw_schedule = kai_client.get_schedule(group_id)
         _schedule_cache["data"] = raw_schedule
         _schedule_cache["timestamp"] = now
         record_successful_sync(source="kai_schedule_api")
         return raw_schedule
-    except Exception as e:
-        logger.warning("Could not fetch live schedule from KAI API (%s), using local backup.", e)
-        if REAL_SCHEDULE_FILE.exists():
-            try:
-                with open(REAL_SCHEDULE_FILE, "r", encoding="utf-8") as f:
-                    backup_data = json.load(f)
-                    _schedule_cache["data"] = backup_data
-                    _schedule_cache["timestamp"] = now
-                    if not get_last_successful_sync():
-                        record_successful_sync(source="local_backup")
-                    return backup_data
-            except Exception as fe:
-                logger.error("Failed to load backup schedule: %s", fe)
-        raise HTTPException(status_code=503, detail=f"Schedule unavailable: {e}")
+    except Exception as ke:
+        logger.warning("Could not fetch live schedule from KAI API (%s), trying local backups.", ke)
+
+    # 3. Tertiary fallback: Local Kapipara JSON file
+    if REAL_KAPIPARA_FILE.exists():
+        try:
+            with open(REAL_KAPIPARA_FILE, "r", encoding="utf-8") as f:
+                data = json.load(f)
+                items = data.get("result", {}).get("schedule", [])
+                grid = KapiparaClient.parse_schedule_grid(items)
+                _schedule_cache["data"] = grid
+                _schedule_cache["timestamp"] = now
+                if not get_last_successful_sync():
+                    record_successful_sync(source="kapipara_backup")
+                return grid
+        except Exception as kbe:
+            logger.error("Failed to load local Kapipara backup: %s", kbe)
+
+    # 4. Quaternary fallback: Legacy real_schedule_5108.json
+    if REAL_SCHEDULE_FILE.exists():
+        try:
+            with open(REAL_SCHEDULE_FILE, "r", encoding="utf-8") as f:
+                backup_data = json.load(f)
+                _schedule_cache["data"] = backup_data
+                _schedule_cache["timestamp"] = now
+                if not get_last_successful_sync():
+                    record_successful_sync(source="local_backup")
+                return backup_data
+        except Exception as fe:
+            logger.error("Failed to load legacy backup schedule: %s", fe)
+
+    raise HTTPException(status_code=503, detail="Schedule unavailable from Kapipara and all fallbacks")
 
 
 def match_subject_ids_for_discipline(discipl_name: str, subjects: List[Subject]) -> List[int]:
@@ -962,6 +1003,7 @@ async def get_schedule(
             "prepod_name": l.prepod_name,
             "potok": l.potok,
             "org_unit_name": l.org_unit_name,
+            "is_changed": l.is_changed,
             "todo_tasks_count": todo_count,
         })
 
@@ -1028,6 +1070,7 @@ async def get_schedule_week(
                 "prepod_name": l.prepod_name,
                 "potok": l.potok,
                 "org_unit_name": l.org_unit_name,
+                "is_changed": l.is_changed,
                 "todo_tasks_count": todo_count,
             })
 
@@ -1157,6 +1200,7 @@ async def ai_chat(req: AiChatRequest, request: Request):
                 "aud_num": l.aud_num,
                 "build_num": l.build_num,
                 "prepod_name": l.prepod_name,
+                "is_changed": l.is_changed,
             })
         return {
             "day": day,

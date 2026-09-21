@@ -44,7 +44,7 @@ def format_short_teacher(full_name: str) -> str:
 
 
 class Lesson(BaseModel):
-    """Normalized lesson representation from KAI API."""
+    """Normalized lesson representation from KAI API / Kapipara API."""
     discipl_name: str = Field(..., description="Название дисциплины")
     discipl_type: str = Field("", description="Тип занятия (лек, пр, л.р., лаб)")
     day_num: int = Field(..., description="День недели (1 - Пн, 6 - Сб, 7 - Вс)")
@@ -55,27 +55,52 @@ class Lesson(BaseModel):
     prepod_name: str = Field("", description="ФИО преподавателя")
     potok: str = Field("", description="Поток или подгруппа")
     org_unit_name: str = Field("", description="Кафедра / подразделение")
+    is_changed: bool = Field(False, description="Флаг оперативной замены или переноса пары")
 
     @classmethod
     def from_raw_dict(cls, data: Dict[str, Any]) -> "Lesson":
-        """Build a Lesson instance from raw KAI API JSON dictionary."""
-        day_num_val = data.get("dayNum", "1")
+        """Build a Lesson instance from raw KAI API or Kapipara JSON dictionary."""
+        day_num_val = data.get("dayNum") if data.get("dayNum") is not None else data.get("daynum", "1")
         try:
             day_num = int(day_num_val)
         except (ValueError, TypeError):
             day_num = 1
 
+        discipl_name = str(data.get("disciplName") or data.get("disciplname") or "").strip()
+        discipl_type = str(data.get("disciplType") or data.get("discipltype") or "").strip()
+        day_time = str(data.get("dayTime") or data.get("daytime") or "").strip()
+        day_date = str(data.get("dayDate") or data.get("daydate") or "").strip()
+        aud_num = str(data.get("audNum") or data.get("auditory") or "").strip()
+        build_num = str(data.get("buildNum") or data.get("building") or "").strip()
+        prepod_name = str(data.get("prepodName") or data.get("prepodfio") or "").strip()
+        potok = str(data.get("potok") or "").strip()
+        org_unit_name = str(data.get("orgUnitName") or data.get("kafTitle") or "").strip()
+
+        is_changed = bool(data.get("is_changed") or data.get("isChanged"))
+        if not is_changed:
+            status = str(data.get("status") or "").lower().strip()
+            if status in {"change", "replace", "transfer", "замена", "перенос"}:
+                is_changed = True
+            elif any(k in f"{discipl_name} {discipl_type} {day_date}".lower() for k in ["замен", "перенос"]):
+                is_changed = True
+            else:
+                # Detect isolated single-day rescheduled classes in Kapipara
+                dates = re.findall(r"\b\d{1,2}\.\d{1,2}\b", day_date)
+                if len(dates) == 1 and "/" not in day_date:
+                    is_changed = True
+
         return cls(
-            discipl_name=str(data.get("disciplName") or "").strip(),
-            discipl_type=str(data.get("disciplType") or "").strip(),
+            discipl_name=discipl_name,
+            discipl_type=discipl_type,
             day_num=day_num,
-            day_time=str(data.get("dayTime") or "").strip(),
-            day_date=str(data.get("dayDate") or "").strip(),
-            aud_num=str(data.get("audNum") or "").strip(),
-            build_num=str(data.get("buildNum") or "").strip(),
-            prepod_name=str(data.get("prepodName") or "").strip(),
-            potok=str(data.get("potok") or "").strip(),
-            org_unit_name=str(data.get("orgUnitName") or "").strip(),
+            day_time=day_time,
+            day_date=day_date,
+            aud_num=aud_num,
+            build_num=build_num,
+            prepod_name=prepod_name,
+            potok=potok,
+            org_unit_name=org_unit_name,
+            is_changed=is_changed,
         )
 
     def is_for_subgroup(self, subgroup: int = 2) -> bool:
@@ -183,6 +208,8 @@ def merge_and_deduplicate_lessons(lessons: List[Lesson]) -> List[Lesson]:
         first_disc = slot_lessons[0].discipl_name.strip().lower()
         same_discipline = all(l.discipl_name.strip().lower() == first_disc for l in slot_lessons)
 
+        slot_changed = any(l.is_changed for l in slot_lessons)
+
         if same_discipline:
             # Case 1: Same subject in the same room with multiple teachers (e.g. physics lab)
             teachers = [format_short_teacher(l.prepod_name) for l in slot_lessons if l.prepod_name]
@@ -190,7 +217,7 @@ def merge_and_deduplicate_lessons(lessons: List[Lesson]) -> List[Lesson]:
             merged_teacher = " / ".join(unique_teachers) if unique_teachers else slot_lessons[0].prepod_name
 
             base_lesson = slot_lessons[0]
-            merged_lesson = base_lesson.model_copy(update={"prepod_name": merged_teacher})
+            merged_lesson = base_lesson.model_copy(update={"prepod_name": merged_teacher, "is_changed": slot_changed})
             merged.append(merged_lesson)
         else:
             # Case 2: Parallel subgroup disciplines in different rooms (e.g. engineering vs computer graphics)
@@ -224,6 +251,7 @@ def merge_and_deduplicate_lessons(lessons: List[Lesson]) -> List[Lesson]:
                 prepod_name=combined_teacher,
                 potok=slot_lessons[0].potok,
                 org_unit_name=slot_lessons[0].org_unit_name,
+                is_changed=slot_changed,
             )
             merged.append(combined_lesson)
 

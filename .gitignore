@@ -5,7 +5,8 @@
 !.env.example
 
 # Сессии и персональные данные
-data/
+data/*
+!data/real_kapipara_5108.json
 *.json
 !manifest.json
 !real_schedule_5108.json

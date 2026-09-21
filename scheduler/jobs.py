@@ -24,6 +24,7 @@ from database.crud import get_tasks
 from database.models import Task
 from services.bb_scraper import BlackboardScraper
 from services.kai_api import KaiApiClient, Lesson
+from services.para_api import KapiparaClient
 
 logger = logging.getLogger("kai_assistant.scheduler")
 
@@ -63,7 +64,21 @@ class NotificationScheduler:
         self.scheduler = AsyncIOScheduler(timezone="Europe/Moscow")
 
     async def get_lessons_for_target_date(self, target_date: date) -> List[Lesson]:
-        """Fetch schedule from KAI portal for a specific date."""
+        """Fetch schedule for a specific date (using Kapipara with fallback to KAI API)."""
+        para_client = KapiparaClient(base_url=settings.kapipara_api_url)
+        try:
+            raw_schedule = para_client.get_schedule_grid(settings.kai_group, fallback_on_error=False)
+            lessons = para_client.get_lessons_for_day(
+                raw_schedule,
+                target_date=target_date,
+                subgroup=settings.kai_subgroup,
+                strict_date=True,
+                deduplicate=True,
+            )
+            return lessons
+        except Exception as pe:
+            logger.warning("Kapipara schedule fetch failed in scheduler (%s), falling back to KAI API.", pe)
+
         client = KaiApiClient(base_url=settings.kai_api_url)
         try:
             group_id = client.search_group_id(settings.kai_group)
@@ -73,7 +88,7 @@ class NotificationScheduler:
                 target_date=target_date,
                 subgroup=settings.kai_subgroup,
                 strict_date=True,
-                deduplicate=True
+                deduplicate=True,
             )
             return lessons
         except Exception as e:
