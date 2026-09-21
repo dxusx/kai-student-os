@@ -33,6 +33,10 @@ def test_sched_001_daily_schedule():
     assert res.status_code == 200, f"Expected 200, got {res.status_code}"
     data = res.json()
     assert "day_name" in data or "lessons" in data, f"Missing schedule fields: {data}"
+    lessons = data.get("lessons", [])
+    if isinstance(lessons, list) and lessons:
+        for l in lessons[:3]:
+            assert "discipl_name" in l or "discipline" in l or "subject" in l
 
 
 def test_sched_002_weekly_schedule():

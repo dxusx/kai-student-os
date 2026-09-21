@@ -97,8 +97,8 @@ def test_ai_001_to_010_parse_matrix_and_no_mutation():
                 assert "subject_name" in data, f"Missing subject_name in parse output for {label}"
 
 
-def test_ai_011_to_014_preview_confirm_cancel(page: Page):
-    """AI-011..AI-014: UI preview presentation, field editing, confirmation into DB, and cancel."""
+def test_ai_011_to_013_preview_edit_confirm(page: Page):
+    """AI-011..AI-013: UI preview presentation, field editing, confirmation into DB."""
     alice_token = get_alice_token()
     page.goto(BASE_URL)
     page.evaluate(f"token => localStorage.setItem('kai_app_auth_token', token)", alice_token)
@@ -142,6 +142,45 @@ def test_ai_011_to_014_preview_confirm_cancel(page: Page):
     # Verify task appears in user's tasks
     tasks = httpx.get(f"{BASE_URL}/api/tasks", headers={"Authorization": f"Bearer {alice_token}"}).json()
     assert any("оптике" in t["title"] for t in tasks)
+
+
+def test_ai_014_cancel_dismiss(page: Page):
+    """AI-014: UI preview presentation and cancel dismiss flow without database mutation."""
+    alice_token = get_alice_token()
+    page.goto(BASE_URL)
+    page.evaluate(f"token => localStorage.setItem('kai_app_auth_token', token)", alice_token)
+    page.reload()
+    page.wait_for_load_state("networkidle")
+
+    # Navigate to AI tab
+    page.click('[data-tab="ai"]')
+    page.wait_for_timeout(400)
+
+    # Fill AI composer textarea
+    composer_input = page.locator("#gemini-text-input")
+    expect(composer_input).to_be_visible()
+    composer_input.fill("Лабораторная по физике: Оптика. Сдать в следующую пятницу.")
+
+    count_before = _get_db_task_count()
+
+    # Click parse button
+    parse_btn = page.locator("#gemini-submit-btn")
+    parse_btn.click()
+
+    # Wait for preview sheet cancel button
+    cancel_btn = page.locator("#sheet-cancel-btn")
+    expect(cancel_btn).to_be_visible(timeout=5000)
+
+    # Click cancel
+    cancel_btn.click()
+    page.wait_for_timeout(400)
+
+    # Assert preview sheet is dismissed / hidden
+    preview_sheet = page.locator("#ai-preview-sheet")
+    expect(preview_sheet).to_have_count(0)
+
+    count_after = _get_db_task_count()
+    assert count_before == count_after, f"DB mutated during cancel! Before: {count_before}, After: {count_after}"
 
 
 def test_ai_015_to_021_failure_taxonomy():

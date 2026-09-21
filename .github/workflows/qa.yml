@@ -57,11 +57,11 @@ jobs:
             tests/test_reproducibility.py \
             -v
 
-      - name: Run Master E2E & Functional QA Runner (Local Mode)
+      - name: Run Master E2E & Functional QA Runner (QA Integrity Gate)
         run: |
           python scripts/run_full_qa.py --mode local --headless
 
-      - name: Upload QA Artifacts and Screenshots
+      - name: Upload QA Artifacts, Reports, and Evidence
         if: always()
         uses: actions/upload-artifact@v4
         with:
@@ -71,4 +71,5 @@ jobs:
             docs/FULL_QA_REPORT.md
             docs/FUNCTION_INVENTORY.md
             docs/FULL_QA_FIX_PLAN.md
+            docs/AI_LATENCY_REPORT.md
           if-no-files-found: ignore

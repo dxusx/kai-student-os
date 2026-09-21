@@ -52,7 +52,17 @@ def test_nav_001_to_004_tab_switching(page: Page):
 
 def test_task_001_render_task_cards(page: Page):
     """TASK-001: All tasks for User Alice render properly with titles and subjects."""
-    _login_alice(page)
+    alice_token = _login_alice(page)
+
+    # Semantic API validation (Section 6)
+    res = httpx.get(f"{BASE_URL}/api/tasks", headers={"Authorization": f"Bearer {alice_token}"}, timeout=5.0)
+    assert res.status_code == 200, f"Expected 200, got {res.status_code}"
+    tasks = res.json()
+    assert isinstance(tasks, list) and len(tasks) >= 5, "Expected list of seeded tasks"
+    for t in tasks:
+        assert "id" in t and "title" in t and "status" in t and "owner_id" in t
+        assert t["owner_id"] in ("user_alice", None)
+
     page.evaluate("() => switchTab('tasks')")
     page.wait_for_timeout(500)
 
