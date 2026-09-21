@@ -8,6 +8,7 @@
 data/
 *.json
 !manifest.json
+!real_schedule_5108.json
 kai_assistant.db
 *.sqlite3
 *.db

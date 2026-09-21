@@ -17,7 +17,10 @@ def _login_alice(page: Page) -> str:
     page.goto(BASE_URL)
     page.evaluate(f"token => localStorage.setItem('kai_app_auth_token', token)", token)
     page.reload()
-    page.wait_for_load_state("networkidle")
+    try:
+        page.wait_for_load_state("networkidle", timeout=3000)
+    except Exception:
+        page.wait_for_load_state("domcontentloaded")
     return token
 
 

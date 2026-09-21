@@ -268,80 +268,83 @@ def run_all_ai_resilience_tests():
     token = create_user_token("student_resilience", username="resilience_tester", role="student")
     auth_hdr = {"Authorization": f"Bearer {token}"}
 
-    # Case 7A: Simulate RATE_LIMIT (429)
-    with patch.object(GeminiService, "summarize_lab_work", side_effect=AiServiceError(
-        category=AiErrorCategory.RATE_LIMIT,
-        message="Rate limit 429",
-        metadata={"started_at": "2026-09-18T00:00:00Z", "duration_ms": 150, "provider": "google-gemini", "model": "gemini-3.6-flash", "success": False, "failure_category": "RATE_LIMIT"}
-    )):
-        resp_rl = client.post(f"/api/ai/summarize-task/{task_id}", headers=auth_hdr)
-        assert resp_rl.status_code == 429
-        body_rl = resp_rl.json()
-        assert "AI временно недоступен" in body_rl["detail"]
-        assert "Это не повлияло на сохранённые задания" in body_rl["detail"]
-        assert body_rl["error"]["category"] == "RATE_LIMIT"
-        assert body_rl["error"]["retryable"] is True
-        assert body_rl["metadata"]["failure_category"] == "RATE_LIMIT"
-    print("   [PASS] Endpoint properly returned HTTP 429 with reassuring envelope on RATE_LIMIT.")
+    # Step 7 requires is_available=True so endpoint invokes summarize_lab_work
+    with patch.object(GeminiService, "is_available", return_value=True):
+        # Case 7A: Simulate RATE_LIMIT (429)
+        with patch.object(GeminiService, "summarize_lab_work", side_effect=AiServiceError(
+            category=AiErrorCategory.RATE_LIMIT,
+            message="Rate limit 429",
+            metadata={"started_at": "2026-09-18T00:00:00Z", "duration_ms": 150, "provider": "google-gemini", "model": "gemini-3.6-flash", "success": False, "failure_category": "RATE_LIMIT"}
+        )):
+            resp_rl = client.post(f"/api/ai/summarize-task/{task_id}", headers=auth_hdr)
+            assert resp_rl.status_code == 429
+            body_rl = resp_rl.json()
+            assert "AI временно недоступен" in body_rl["detail"]
+            assert "Это не повлияло на сохранённые задания" in body_rl["detail"]
+            assert body_rl["error"]["category"] == "RATE_LIMIT"
+            assert body_rl["error"]["retryable"] is True
+            assert body_rl["metadata"]["failure_category"] == "RATE_LIMIT"
+        print("   [PASS] Endpoint properly returned HTTP 429 with reassuring envelope on RATE_LIMIT.")
 
-    # Case 7B: Simulate UPSTREAM_UNAVAILABLE (503)
-    with patch.object(GeminiService, "summarize_lab_work", side_effect=AiServiceError(
-        category=AiErrorCategory.UPSTREAM_UNAVAILABLE,
-        message="503 Model overloaded",
-        metadata={"started_at": "2026-09-18T00:00:00Z", "duration_ms": 200, "provider": "google-gemini", "model": "gemini-3.6-flash", "success": False, "failure_category": "UPSTREAM_UNAVAILABLE"}
-    )):
-        resp_503 = client.post(f"/api/ai/summarize-task/{task_id}", headers=auth_hdr)
-        assert resp_503.status_code == 503
-        body_503 = resp_503.json()
-        assert body_503["error"]["category"] == "UPSTREAM_UNAVAILABLE"
-        assert body_503["error"]["retryable"] is True
-        assert "перегружен" in body_503["error"]["detail"]
-        # Must NOT expose raw python traceback
-        assert "Traceback" not in body_503["detail"]
-    print("   [PASS] Endpoint properly returned HTTP 503 with reassuring envelope on UPSTREAM_UNAVAILABLE.")
+        # Case 7B: Simulate UPSTREAM_UNAVAILABLE (503)
+        with patch.object(GeminiService, "summarize_lab_work", side_effect=AiServiceError(
+            category=AiErrorCategory.UPSTREAM_UNAVAILABLE,
+            message="503 Model overloaded",
+            metadata={"started_at": "2026-09-18T00:00:00Z", "duration_ms": 200, "provider": "google-gemini", "model": "gemini-3.6-flash", "success": False, "failure_category": "UPSTREAM_UNAVAILABLE"}
+        )):
+            resp_503 = client.post(f"/api/ai/summarize-task/{task_id}", headers=auth_hdr)
+            assert resp_503.status_code == 503
+            body_503 = resp_503.json()
+            assert body_503["error"]["category"] == "UPSTREAM_UNAVAILABLE"
+            assert body_503["error"]["retryable"] is True
+            assert "перегружен" in body_503["error"]["detail"]
+            # Must NOT expose raw python traceback
+            assert "Traceback" not in body_503["detail"]
+        print("   [PASS] Endpoint properly returned HTTP 503 with reassuring envelope on UPSTREAM_UNAVAILABLE.")
 
-    # Case 7C: Simulate TIMEOUT (504)
-    with patch.object(GeminiService, "summarize_lab_work", side_effect=AiServiceError(
-        category=AiErrorCategory.TIMEOUT,
-        message="Read timed out",
-        metadata={"started_at": "2026-09-18T00:00:00Z", "duration_ms": 30000, "provider": "google-gemini", "model": "gemini-3.6-flash", "success": False, "failure_category": "TIMEOUT"}
-    )):
-        resp_to = client.post(f"/api/ai/summarize-task/{task_id}", headers=auth_hdr)
-        assert resp_to.status_code == 504
-        body_to = resp_to.json()
-        assert body_to["error"]["category"] == "TIMEOUT"
-        assert body_to["error"]["retryable"] is True
-        assert "истекло" in body_to["error"]["detail"]
-    print("   [PASS] Endpoint properly returned HTTP 504 with reassuring envelope on TIMEOUT.")
+        # Case 7C: Simulate TIMEOUT (504)
+        with patch.object(GeminiService, "summarize_lab_work", side_effect=AiServiceError(
+            category=AiErrorCategory.TIMEOUT,
+            message="Read timed out",
+            metadata={"started_at": "2026-09-18T00:00:00Z", "duration_ms": 30000, "provider": "google-gemini", "model": "gemini-3.6-flash", "success": False, "failure_category": "TIMEOUT"}
+        )):
+            resp_to = client.post(f"/api/ai/summarize-task/{task_id}", headers=auth_hdr)
+            assert resp_to.status_code == 504
+            body_to = resp_to.json()
+            assert body_to["error"]["category"] == "TIMEOUT"
+            assert body_to["error"]["retryable"] is True
+            assert "истекло" in body_to["error"]["detail"]
+        print("   [PASS] Endpoint properly returned HTTP 504 with reassuring envelope on TIMEOUT.")
 
-    # Case 7D: Simulate QUOTA_EXCEEDED (429)
-    with patch.object(GeminiService, "summarize_lab_work", side_effect=AiServiceError(
-        category=AiErrorCategory.QUOTA_EXCEEDED,
-        message="Quota exceeded for billing tier",
-        metadata={"started_at": "2026-09-18T00:00:00Z", "duration_ms": 100, "provider": "google-gemini", "model": "gemini-3.6-flash", "success": False, "failure_category": "QUOTA_EXCEEDED"}
-    )):
-        resp_q = client.post(f"/api/ai/summarize-task/{task_id}", headers=auth_hdr)
-        assert resp_q.status_code == 429
-        body_q = resp_q.json()
-        assert body_q["error"]["category"] == "QUOTA_EXCEEDED"
-        assert body_q["error"]["retryable"] is False
-    print("   [PASS] Endpoint properly returned HTTP 429 (retryable=False) on QUOTA_EXCEEDED.")
+        # Case 7D: Simulate QUOTA_EXCEEDED (429)
+        with patch.object(GeminiService, "summarize_lab_work", side_effect=AiServiceError(
+            category=AiErrorCategory.QUOTA_EXCEEDED,
+            message="Quota exceeded for billing tier",
+            metadata={"started_at": "2026-09-18T00:00:00Z", "duration_ms": 100, "provider": "google-gemini", "model": "gemini-3.6-flash", "success": False, "failure_category": "QUOTA_EXCEEDED"}
+        )):
+            resp_q = client.post(f"/api/ai/summarize-task/{task_id}", headers=auth_hdr)
+            assert resp_q.status_code == 429
+            body_q = resp_q.json()
+            assert body_q["error"]["category"] == "QUOTA_EXCEEDED"
+            assert body_q["error"]["retryable"] is False
+        print("   [PASS] Endpoint properly returned HTTP 429 (retryable=False) on QUOTA_EXCEEDED.")
 
     # -------------------------------------------------------------
     # 8. TEST PARSE-TASK HONEST FALLBACK (NO FAKE RESULTS)
     # -------------------------------------------------------------
     print("\n--- 8. Testing Parse-Task Honest Fallback (No Fake AI Results) ---")
-    resp_parse = client.post(
-        "/api/ai/parse-task",
-        json={"text": "лабораторная работа 3 по физике до пятницы в 401 ауд"},
-        headers=auth_hdr
-    )
-    assert resp_parse.status_code == 200
-    parse_data = resp_parse.json()
-    assert "лабораторная" in parse_data["title"].lower() or "физик" in parse_data["subject_name"].lower()
-    assert "metadata" in parse_data
-    assert parse_data["metadata"].get("source") in ("google-gemini", "heuristic_fallback")
-    print(f"   [PASS] Parse-task returned structured preview with honest metadata (source: {parse_data['metadata'].get('source')}).")
+    with patch.object(GeminiService, "is_available", return_value=False):
+        resp_parse = client.post(
+            "/api/ai/parse-task",
+            json={"text": "лабораторная работа 3 по физике до пятницы в 401 ауд"},
+            headers=auth_hdr
+        )
+        assert resp_parse.status_code == 200
+        parse_data = resp_parse.json()
+        assert "лабораторная" in parse_data["title"].lower() or "физик" in parse_data["subject_name"].lower()
+        assert "metadata" in parse_data
+        assert parse_data["metadata"].get("source") == "heuristic_fallback"
+        print(f"   [PASS] Parse-task returned structured preview with honest metadata (source: {parse_data['metadata'].get('source')}).")
 
     print("\n================================================================")
     print("SUCCESS: ALL AI RESILIENCE & ERROR TAXONOMY TESTS PASSED (100%)")
