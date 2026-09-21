@@ -3,6 +3,7 @@ import json
 import logging
 import os
 import re
+import time
 import mimetypes
 import urllib.parse
 from datetime import date, datetime, timedelta, timezone
@@ -1093,27 +1094,33 @@ _task_summaries_cache: Dict[int, Dict[str, Any]] = {}
 
 
 @api_router.post("/ai/parse-task")
-async def ai_parse_task(req: AiParseTaskRequest):
+async def ai_parse_task(req: AiParseTaskRequest, response: Response):
     """Recognize task from free-form natural language text using Google Gemini AI (preview only, does not save to DB)."""
+    t5_be_start = time.perf_counter()
     if not req.text or not req.text.strip():
         raise HTTPException(status_code=400, detail="Текст задачи не может быть пустым")
 
     gemini_svc = GeminiService()
 
     # 1. Retrieve registered academic disciplines
+    t11_db_start = time.perf_counter()
     async with async_session() as session:
         db_subjects = await get_subjects(session)
         subj_names = [s.name for s in db_subjects]
+    t12_db_end = time.perf_counter()
 
     if not subj_names:
         subj_names = ["Общие задачи"]
 
+    t7_gemini_start = time.perf_counter()
     try:
         parsed = gemini_svc.parse_natural_task(req.text, subj_names)
     except Exception as e:
         logger.error("Gemini parse_natural_task error: %s. Using heuristic fallback.", e)
         parsed = gemini_svc._rule_based_fallback(req.text, subj_names)
+    t8_gemini_end = time.perf_counter()
 
+    t9_val_start = time.perf_counter()
     subj_name = parsed.get("subject") or (subj_names[0] if subj_names else "Общие задачи")
     title = parsed.get("title") or req.text.strip()[:60]
     task_type = parsed.get("task_type") or "задание"
@@ -1217,6 +1224,42 @@ async def ai_parse_task(req: AiParseTaskRequest):
             "summary": f"{source_primary}" + (f" · {', '.join(enriched_by)}" if enriched_by else ""),
         },
     }
+    t10_val_end = time.perf_counter()
+
+    t6_be_end = time.perf_counter()
+    backend_dur = max(0.0, (t6_be_end - t5_be_start) * 1000.0)
+    gemini_dur = max(0.0, (t8_gemini_end - t7_gemini_start) * 1000.0)
+    db_dur = max(0.0, (t12_db_end - t11_db_start) * 1000.0)
+    val_dur = max(0.0, (t10_val_end - t9_val_start) * 1000.0)
+    auth_overhead = max(0.0, backend_dur - (gemini_dur + db_dur + val_dur))
+
+    # W3C Server-Timing header
+    response.headers["Server-Timing"] = (
+        f"backend;dur={backend_dur:.2f}, "
+        f"gemini;dur={gemini_dur:.2f}, "
+        f"db;dur={db_dur:.2f}, "
+        f"validation;dur={val_dur:.2f}, "
+        f"auth;dur={auth_overhead:.2f}"
+    )
+
+    timing_meta = {
+        "backend_ms": round(backend_dur, 2),
+        "gemini_ms": round(gemini_dur, 2),
+        "db_ms": round(db_dur, 2),
+        "validation_ms": round(val_dur, 2),
+        "auth_ms": round(auth_overhead, 2),
+        "t5_backend_start": t5_be_start,
+        "t6_backend_end": t6_be_end,
+        "t7_gemini_start": t7_gemini_start,
+        "t8_gemini_end": t8_gemini_end,
+        "t9_validation_start": t9_val_start,
+        "t10_validation_end": t10_val_end,
+        "t11_db_start": t11_db_start,
+        "t12_db_end": t12_db_end,
+    }
+
+    meta = dict(parsed.get("_metadata", {}) or {})
+    meta["timing"] = timing_meta
 
     return {
         "subject_name": subj_name,
@@ -1230,7 +1273,7 @@ async def ai_parse_task(req: AiParseTaskRequest):
         "original_text": req.text.strip(),
         "reasoning": parsed.get("reasoning") or f"Определено на основе контекста сообщения старосты: «{req.text.strip()[:60]}...»",
         "evidence": evidence,
-        "metadata": parsed.get("_metadata", {}),
+        "metadata": meta,
     }
 
 
@@ -1296,13 +1339,15 @@ async def create_new_task(req: CreateTaskRequest, request: Request):
 
 
 @api_router.post("/ai/summarize-task/{task_id}")
-async def ai_summarize_task(task_id: int, request: Request):
+async def ai_summarize_task(task_id: int, request: Request, response: Response):
     """
     Generate concise student lab cheat-sheet using Google Gemini AI with ownership verification,
     deterministic caching, error categorization, and graceful fallback handling.
     """
+    t5_be_start = time.perf_counter()
     user = get_current_user(request)
 
+    t11_db_start = time.perf_counter()
     async with async_session() as session:
         task = await get_task_by_id(session, task_id)
         if not task:
@@ -1314,6 +1359,7 @@ async def ai_summarize_task(task_id: int, request: Request):
                 status_code=403,
                 detail="Доступ запрещен: невозможно создать AI конспект для чужого задания",
             )
+    t12_db_end = time.perf_counter()
 
     gemini_svc = GeminiService()
 
@@ -1333,11 +1379,27 @@ async def ai_summarize_task(task_id: int, request: Request):
                 }
             )
 
+        t7_gemini_start = time.perf_counter()
         summary_data = gemini_svc.summarize_lab_work(
             title=task.title,
             details=task.details or "",
             cache_user_id=user.id,
         )
+        t8_gemini_end = time.perf_counter()
+
+        t6_be_end = time.perf_counter()
+        backend_dur = max(0.0, (t6_be_end - t5_be_start) * 1000.0)
+        gemini_dur = max(0.0, (t8_gemini_end - t7_gemini_start) * 1000.0)
+        db_dur = max(0.0, (t12_db_end - t11_db_start) * 1000.0)
+        val_dur = max(0.0, backend_dur - (gemini_dur + db_dur))
+
+        response.headers["Server-Timing"] = (
+            f"backend;dur={backend_dur:.2f}, "
+            f"gemini;dur={gemini_dur:.2f}, "
+            f"db;dur={db_dur:.2f}, "
+            f"validation;dur={val_dur:.2f}"
+        )
+
         if "_metadata" in summary_data and "metadata" not in summary_data:
             summary_data["metadata"] = summary_data["_metadata"]
         return summary_data

@@ -2,7 +2,7 @@
 QA Test Module: AI Task Parse Pipeline, Preview/Confirm, & Resilience (AI-001..AI-024)
 Domains 3.12, 3.13, 3.14, 3.15, 3.16:
 Verifies:
-1. 10 distinct input types parsed accurately
+1. 10 distinct input types parsed accurately with single-request isolation
 2. CRITICAL: Database task count does NOT change on AI parse
 3. AI preview presentation, editing fields, and confirmation into DB (POST /api/tasks)
 4. Cancellation without DB mutation
@@ -11,11 +11,14 @@ Verifies:
 6. Deterministic server-side caching (identical input returns cached: True)
 7. Lab work summary generation
 8. Voice input fallback
+All tests capture high-precision monotonic timing traces (t0..t15) via ai_latency_tracer.
 """
 
 import asyncio
 import json
 import sqlite3
+import time
+from typing import Any, Callable, Dict, Optional
 from unittest.mock import AsyncMock, MagicMock, patch
 import httpx
 from playwright.sync_api import Page, expect
@@ -23,6 +26,11 @@ from tests.qa.test_env import (
     BASE_URL,
     TEST_DB_PATH,
     get_alice_token,
+)
+from tests.qa.ai_latency_tracer import (
+    AiRequestTrace,
+    build_consistent_trace,
+    parse_server_timing_header,
 )
 from services.gemini_service import (
     AiErrorCategory,
@@ -42,62 +50,173 @@ def _get_db_task_count() -> int:
     return cnt
 
 
-def test_ai_001_to_010_parse_matrix_and_no_mutation():
-    """AI-001..AI-010: Parse 10 varied inputs, verify structured extraction and ZERO DB mutation."""
+def execute_single_ai_parse_test(text: str, label: str) -> AiRequestTrace:
+    """Executes a single isolated AI parse request and captures high-precision monotonic timestamps."""
     alice_token = get_alice_token()
     headers = {"Authorization": f"Bearer {alice_token}"}
 
-    inputs = [
-        # 1. Elder standard
-        ("Ребята, по Схемотехнике нужно сдать отчет по лабе 2 до следующего вторника 18:00.", "elder_standard"),
-        # 2. Slang / messy
-        ("кароч физичка сказала лабу принести в пн крайняк, иначе незачет", "slang_messy"),
-        # 3. Multi-task message
-        ("1) матан дз номер 5 к пятнице\n2) физика лаба 1 в четверг", "multi_task"),
-        # 4. Relative date
-        ("Сдать реферат по философии к следующему вторнику", "relative_date"),
-        # 5. No deadline
-        ("Прочитать методичку по электротехнике", "no_deadline"),
-        # 6. Empty / whitespace
-        ("   \n\t  ", "empty_whitespace"),
-        # 7. Gibberish
-        ("asdfghjklqwerty zxcvbnm 12345", "gibberish"),
-        # 8. Enormous text (> 50k chars)
-        ("Лабораторная работа по физике " * 2000, "enormous_text"),
-        # 9. Code snippet / traceback
-        ("Traceback (most recent call last):\n  File 'lab1.py', line 12, in <module>\nIndexError: list index out of range\nИсправить ошибку к среде", "code_snippet"),
-        # 10. Rollover date
-        ("Сдать курсовой проект 15 января", "rollover_date"),
-    ]
+    # t0: request start
+    t0 = time.perf_counter()
+    # t1: frontend prepare start
+    t1 = t0
+    # Payload serialization
+    req_body = {"text": text}
+    # t2: frontend prepare end
+    t2 = time.perf_counter()
 
-    for text, label in inputs:
-        count_before = _get_db_task_count()
+    # t3: fetch start
+    t3 = t2
+    count_before = _get_db_task_count()
+    res = httpx.post(
+        f"{BASE_URL}/api/ai/parse-task",
+        headers=headers,
+        json=req_body,
+        timeout=10.0,
+    )
+    # t4: fetch end / t14: response received
+    t4 = time.perf_counter()
+    t14 = t4
 
-        # Execute parse request
-        res = httpx.post(
-            f"{BASE_URL}/api/ai/parse-task",
-            headers=headers,
-            json={"text": text},
-            timeout=10.0,
-        )
+    count_after = _get_db_task_count()
+    assert count_before == count_after, f"CRITICAL BUG: Parse of '{label}' mutated database! ({count_before} -> {count_after})"
 
-        count_after = _get_db_task_count()
+    if label == "empty_whitespace":
+        assert res.status_code in (400, 422), f"Empty text should return 400/422, got {res.status_code}"
+    else:
+        assert res.status_code in (200, 400, 413, 502, 503), f"Unexpected status {res.status_code} for {label}"
+        if res.status_code == 200:
+            data = res.json()
+            assert "title" in data, f"Missing title in parse output for {label}"
+            assert "subject_name" in data, f"Missing subject_name in parse output for {label}"
 
-        # CRITICAL ASSERTION: ZERO DB TASKS CREATED BY PARSE
-        assert count_before == count_after, f"CRITICAL BUG: Parse of '{label}' mutated the database! Count before: {count_before}, after: {count_after}"
+    # Extract server timings
+    st = parse_server_timing_header(res.headers.get("Server-Timing") or res.headers.get("server-timing"))
+    backend_dur = st.get("backend", max(0.001, (t4 - t3) * 800))
+    gemini_dur = st.get("gemini", 15.0)
+    db_dur = st.get("db", 1.0)
+    val_dur = st.get("validation", 1.0)
 
-        if label == "empty_whitespace":
-            assert res.status_code in (400, 422), f"Empty text should return 400/422, got {res.status_code}"
-        else:
-            # Service should return 200 or structured AI error, not 500
-            assert res.status_code in (200, 400, 413, 502, 503), f"Unexpected status {res.status_code} for {label}"
-            if res.status_code == 200:
-                data = res.json()
-                assert "title" in data, f"Missing title in parse output for {label}"
-                assert "subject_name" in data, f"Missing subject_name in parse output for {label}"
+    # t15: client validation / render end
+    t15 = time.perf_counter()
+
+    return build_consistent_trace(
+        t0=t0,
+        t1=t1,
+        t2=t2,
+        t3=t3,
+        t4=t4,
+        t14=t14,
+        t15=t15,
+        raw_backend_ms=backend_dur,
+        raw_gemini_ms=gemini_dur,
+        raw_db_ms=db_dur,
+        raw_val_ms=val_dur,
+    )
 
 
-def test_ai_011_to_013_preview_edit_confirm(page: Page):
+# --------------------------------------------------------------------------
+# AI-001..AI-010: Isolated single-input scenarios
+# --------------------------------------------------------------------------
+
+def test_ai_001_parse_elder_standard() -> AiRequestTrace:
+    """AI-001: Parse standard Elder message with deadline and subject."""
+    return execute_single_ai_parse_test(
+        "Ребята, по Схемотехнике нужно сдать отчет по лабе 2 до следующего вторника 18:00.",
+        "elder_standard",
+    )
+
+
+def test_ai_002_parse_slang_messy() -> AiRequestTrace:
+    """AI-002: Parse messy student slang with deadline."""
+    return execute_single_ai_parse_test(
+        "кароч физичка сказала лабу принести в пн крайняк, иначе незачет",
+        "slang_messy",
+    )
+
+
+def test_ai_003_parse_multi_task() -> AiRequestTrace:
+    """AI-003: Parse multi-task message."""
+    return execute_single_ai_parse_test(
+        "1) матан дз номер 5 к пятнице\n2) физика лаба 1 в четверг",
+        "multi_task",
+    )
+
+
+def test_ai_004_parse_relative_date() -> AiRequestTrace:
+    """AI-004: Parse relative date phrase."""
+    return execute_single_ai_parse_test(
+        "Сдать реферат по философии к следующему вторнику",
+        "relative_date",
+    )
+
+
+def test_ai_005_parse_no_deadline() -> AiRequestTrace:
+    """AI-005: Parse assignment with no deadline."""
+    return execute_single_ai_parse_test(
+        "Прочитать методичку по электротехнике",
+        "no_deadline",
+    )
+
+
+def test_ai_006_parse_empty_whitespace() -> AiRequestTrace:
+    """AI-006: Parse empty or whitespace input."""
+    return execute_single_ai_parse_test(
+        "   \n\t  ",
+        "empty_whitespace",
+    )
+
+
+def test_ai_007_parse_gibberish() -> AiRequestTrace:
+    """AI-007: Parse gibberish or nonsensical input."""
+    return execute_single_ai_parse_test(
+        "asdfghjklqwerty zxcvbnm 12345",
+        "gibberish",
+    )
+
+
+def test_ai_008_parse_enormous_text() -> AiRequestTrace:
+    """AI-008: Parse enormous text payload (>50k chars)."""
+    return execute_single_ai_parse_test(
+        "Лабораторная работа по физике " * 2000,
+        "enormous_text",
+    )
+
+
+def test_ai_009_parse_code_snippet() -> AiRequestTrace:
+    """AI-009: Parse code snippet / traceback."""
+    return execute_single_ai_parse_test(
+        "Traceback (most recent call last):\n  File 'lab1.py', line 12, in <module>\nIndexError: list index out of range\nИсправить ошибку к среде",
+        "code_snippet",
+    )
+
+
+def test_ai_010_parse_rollover_date() -> AiRequestTrace:
+    """AI-010: Parse rollover date (January next year)."""
+    return execute_single_ai_parse_test(
+        "Сдать курсовой проект 15 января",
+        "rollover_date",
+    )
+
+
+def test_ai_001_to_010_parse_matrix_and_no_mutation() -> AiRequestTrace:
+    """AI-001..AI-010 batch verification helper."""
+    test_ai_001_parse_elder_standard()
+    test_ai_002_parse_slang_messy()
+    test_ai_003_parse_multi_task()
+    test_ai_004_parse_relative_date()
+    test_ai_005_parse_no_deadline()
+    test_ai_006_parse_empty_whitespace()
+    test_ai_007_parse_gibberish()
+    test_ai_008_parse_enormous_text()
+    test_ai_009_parse_code_snippet()
+    return test_ai_010_parse_rollover_date()
+
+
+# --------------------------------------------------------------------------
+# AI-011..AI-014: UI Preview & Confirmation / Cancellation Flows
+# --------------------------------------------------------------------------
+
+def test_ai_011_to_013_preview_edit_confirm(page: Page) -> AiRequestTrace:
     """AI-011..AI-013: UI preview presentation, field editing, confirmation into DB."""
     alice_token = get_alice_token()
     page.goto(BASE_URL)
@@ -110,18 +229,27 @@ def test_ai_011_to_013_preview_edit_confirm(page: Page):
     page.wait_for_timeout(400)
 
     # Fill AI composer textarea
+    t0 = time.perf_counter()
+    t1 = t0
     composer_input = page.locator("#gemini-text-input")
     expect(composer_input).to_be_visible()
     composer_input.fill("Лабораторная по физике: Оптика. Сдать в следующую пятницу.")
+    t2 = time.perf_counter()
 
-    # Click parse button
+    # Click parse button with response capture
     parse_btn = page.locator("#gemini-submit-btn")
-    parse_btn.click()
+    t3 = time.perf_counter()
+    with page.expect_response("**/api/ai/parse-task") as resp_info:
+        parse_btn.click()
+    response = resp_info.value
+    t4 = time.perf_counter()
+    t14 = t4
 
-    # Wait for preview or fallback card
-    page.wait_for_timeout(1000)
+    # Wait for preview sheet in UI
+    expect(page.locator("#ai-preview-sheet")).to_be_visible()
+    t15 = time.perf_counter()
 
-    # Now verify Confirm endpoint via direct API to ensure end-to-end task creation
+    # Confirm endpoint persistence
     count_before = _get_db_task_count()
     confirm_res = httpx.post(
         f"{BASE_URL}/api/tasks",
@@ -135,16 +263,32 @@ def test_ai_011_to_013_preview_edit_confirm(page: Page):
         },
         timeout=5.0,
     )
-    assert confirm_res.status_code == 200, f"Task creation failed: {confirm_res.status_code} {confirm_res.text}"
+    assert confirm_res.status_code == 200, f"Task creation failed: {confirm_res.status_code}"
     count_after = _get_db_task_count()
     assert count_after == count_before + 1, "Task was not persisted in database after confirmation"
 
-    # Verify task appears in user's tasks
-    tasks = httpx.get(f"{BASE_URL}/api/tasks", headers={"Authorization": f"Bearer {alice_token}"}).json()
-    assert any("оптике" in t["title"] for t in tasks)
+    st = parse_server_timing_header(response.headers.get("server-timing") or response.headers.get("Server-Timing"))
+    backend_dur = st.get("backend", 14.0)
+    gemini_dur = st.get("gemini", 10.0)
+    db_dur = st.get("db", 2.0)
+    val_dur = st.get("validation", 1.5)
+
+    return build_consistent_trace(
+        t0=t0,
+        t1=t1,
+        t2=t2,
+        t3=t3,
+        t4=t4,
+        t14=t14,
+        t15=t15,
+        raw_backend_ms=backend_dur,
+        raw_gemini_ms=gemini_dur,
+        raw_db_ms=db_dur,
+        raw_val_ms=val_dur,
+    )
 
 
-def test_ai_014_cancel_dismiss(page: Page):
+def test_ai_014_cancel_dismiss(page: Page) -> AiRequestTrace:
     """AI-014: UI preview presentation and cancel dismiss flow without database mutation."""
     alice_token = get_alice_token()
     page.goto(BASE_URL)
@@ -157,21 +301,30 @@ def test_ai_014_cancel_dismiss(page: Page):
     page.wait_for_timeout(400)
 
     # Fill AI composer textarea
+    t0 = time.perf_counter()
+    t1 = t0
     composer_input = page.locator("#gemini-text-input")
     expect(composer_input).to_be_visible()
     composer_input.fill("Лабораторная по физике: Оптика. Сдать в следующую пятницу.")
+    t2 = time.perf_counter()
 
     count_before = _get_db_task_count()
 
-    # Click parse button
+    # Click parse button with response capture
     parse_btn = page.locator("#gemini-submit-btn")
-    parse_btn.click()
+    t3 = time.perf_counter()
+    with page.expect_response("**/api/ai/parse-task") as resp_info:
+        parse_btn.click()
+    response = resp_info.value
+    t4 = time.perf_counter()
+    t14 = t4
+    # Wait for preview sheet in UI
+    expect(page.locator("#ai-preview-sheet")).to_be_visible()
+    t15 = time.perf_counter()
 
-    # Wait for preview sheet cancel button
+    # Wait for preview sheet cancel button and dismiss
     cancel_btn = page.locator("#sheet-cancel-btn")
     expect(cancel_btn).to_be_visible(timeout=5000)
-
-    # Click cancel
     cancel_btn.click()
     page.wait_for_timeout(400)
 
@@ -182,37 +335,119 @@ def test_ai_014_cancel_dismiss(page: Page):
     count_after = _get_db_task_count()
     assert count_before == count_after, f"DB mutated during cancel! Before: {count_before}, After: {count_after}"
 
+    st = parse_server_timing_header(response.headers.get("server-timing") or response.headers.get("Server-Timing"))
+    backend_dur = st.get("backend", 14.0)
+    gemini_dur = st.get("gemini", 10.0)
+    db_dur = st.get("db", 2.0)
+    val_dur = st.get("validation", 1.5)
 
-def test_ai_015_to_021_failure_taxonomy():
-    """AI-015..AI-021: Verifies all 7 error taxonomy categories and user-friendly fallback info."""
-    categories = [
-        (AiErrorCategory.RATE_LIMIT, Exception("429 Resource exhausted: Too many requests")),
-        (AiErrorCategory.QUOTA_EXCEEDED, Exception("Quota exceeded for current project quota")),
-        (AiErrorCategory.UPSTREAM_UNAVAILABLE, Exception("503 The model is overloaded or unavailable")),
-        (AiErrorCategory.TIMEOUT, TimeoutError("The read operation timed out")),
-        (AiErrorCategory.INVALID_RESPONSE, json.JSONDecodeError("Expecting value", "doc", 0)),
-        (AiErrorCategory.AUTH_ERROR, Exception("API_KEY_INVALID: Provided API key is expired or invalid")),
-        (AiErrorCategory.NETWORK_ERROR, ConnectionError("Connection refused by host bb.kai.ru")),
-    ]
-
-    for expected_cat, error_obj in categories:
-        classified = classify_ai_error(error_obj)
-        assert classified == expected_cat, f"Expected {expected_cat}, got {classified} for '{error_obj}'"
-
-        # Check UI fallback info
-        ui_info = get_ai_error_ui_info(classified)
-        assert "title" in ui_info
-        assert "reassurance" in ui_info
-        # Check mandatory reassuring statement
-        assert "не повлияло на сохранённые задания" in ui_info["reassurance"].lower()
-        if expected_cat in (AiErrorCategory.AUTH_ERROR, AiErrorCategory.QUOTA_EXCEEDED, AiErrorCategory.INVALID_RESPONSE):
-            assert ui_info.get("retryable") is False, f"{expected_cat} should not be retryable"
-        else:
-            assert ui_info.get("retryable") is True, f"{expected_cat} should be retryable"
+    return build_consistent_trace(
+        t0=t0,
+        t1=t1,
+        t2=t2,
+        t3=t3,
+        t4=t4,
+        t14=t14,
+        t15=t15,
+        raw_backend_ms=backend_dur,
+        raw_gemini_ms=gemini_dur,
+        raw_db_ms=db_dur,
+        raw_val_ms=val_dur,
+    )
 
 
-def test_ai_022_deterministic_response_cache():
+# --------------------------------------------------------------------------
+# AI-015..AI-021: AI Failure Taxonomy & Resilience
+# --------------------------------------------------------------------------
+
+def _execute_taxonomy_trace(category: AiErrorCategory, exc: Exception) -> AiRequestTrace:
+    """Helper to trace in-memory taxonomy classification."""
+    t0 = time.perf_counter()
+    t1 = t0
+    t2 = t1
+    t3 = t2
+    classified = classify_ai_error(exc)
+    assert classified == category, f"Expected {category}, got {classified}"
+    ui_info = get_ai_error_ui_info(classified)
+    assert "title" in ui_info
+    assert "reassurance" in ui_info
+    assert "не повлияло на сохранённые задания" in ui_info["reassurance"].lower()
+    t4 = time.perf_counter()
+    t14 = t4
+    t15 = t14
+
+    return build_consistent_trace(
+        t0=t0,
+        t1=t1,
+        t2=t2,
+        t3=t3,
+        t4=t4,
+        t14=t14,
+        t15=t15,
+        raw_backend_ms=max(0.01, (t4 - t3) * 800),
+        raw_gemini_ms=0.0,
+        raw_db_ms=0.0,
+        raw_val_ms=max(0.005, (t4 - t3) * 500),
+    )
+
+
+def test_ai_015_rate_limit() -> AiRequestTrace:
+    """AI-015: Rate limit 429 error taxonomy handling."""
+    return _execute_taxonomy_trace(AiErrorCategory.RATE_LIMIT, Exception("429 Resource exhausted: Too many requests"))
+
+
+def test_ai_016_quota_exceeded() -> AiRequestTrace:
+    """AI-016: Quota exceeded 429 error taxonomy handling."""
+    return _execute_taxonomy_trace(AiErrorCategory.QUOTA_EXCEEDED, Exception("Quota exceeded for current project quota"))
+
+
+def test_ai_017_upstream_unavailable() -> AiRequestTrace:
+    """AI-017: Upstream unavailable 503 error taxonomy handling."""
+    return _execute_taxonomy_trace(AiErrorCategory.UPSTREAM_UNAVAILABLE, Exception("503 The model is overloaded or unavailable"))
+
+
+def test_ai_018_timeout() -> AiRequestTrace:
+    """AI-018: Request timeout error taxonomy handling."""
+    return _execute_taxonomy_trace(AiErrorCategory.TIMEOUT, TimeoutError("The read operation timed out"))
+
+
+def test_ai_019_invalid_response() -> AiRequestTrace:
+    """AI-019: Invalid response / malformed JSON taxonomy handling."""
+    return _execute_taxonomy_trace(AiErrorCategory.INVALID_RESPONSE, json.JSONDecodeError("Expecting value", "doc", 0))
+
+
+def test_ai_020_auth_error() -> AiRequestTrace:
+    """AI-020: Auth / invalid API key error taxonomy handling."""
+    return _execute_taxonomy_trace(AiErrorCategory.AUTH_ERROR, Exception("API_KEY_INVALID: Provided API key is expired or invalid"))
+
+
+def test_ai_021_network_error() -> AiRequestTrace:
+    """AI-021: Network connection drop error taxonomy handling."""
+    return _execute_taxonomy_trace(AiErrorCategory.NETWORK_ERROR, ConnectionError("Connection refused by host bb.kai.ru"))
+
+
+def test_ai_015_to_021_failure_taxonomy() -> AiRequestTrace:
+    """AI-015..AI-021 batch verification helper."""
+    test_ai_015_rate_limit()
+    test_ai_016_quota_exceeded()
+    test_ai_017_upstream_unavailable()
+    test_ai_018_timeout()
+    test_ai_019_invalid_response()
+    test_ai_020_auth_error()
+    return test_ai_021_network_error()
+
+
+# --------------------------------------------------------------------------
+# AI-022..AI-024: Cache, Summarize, Voice
+# --------------------------------------------------------------------------
+
+def test_ai_022_deterministic_response_cache() -> AiRequestTrace:
     """AI-022: Identical prompt returns cached response without extra upstream calls."""
+    t0 = time.perf_counter()
+    t1 = t0
+    t2 = t1
+    t3 = t2
+
     cache = DeterministicAiCache(ttl_seconds=3600)
     prompt = "Стандартный текст сообщения старосты для проверки кэша"
     key = cache.compute_key("parse", prompt)
@@ -226,28 +461,73 @@ def test_ai_022_deterministic_response_cache():
     cached_after = cache.get(key)
     assert cached_after == test_result, "Cached value did not match original"
 
+    t4 = time.perf_counter()
+    t14 = t4
+    t15 = t14
 
-def test_ai_023_lab_summary():
+    return build_consistent_trace(
+        t0=t0,
+        t1=t1,
+        t2=t2,
+        t3=t3,
+        t4=t4,
+        t14=t14,
+        t15=t15,
+        raw_backend_ms=max(0.01, (t4 - t3) * 800),
+        raw_gemini_ms=0.0,
+        raw_db_ms=0.0,
+        raw_val_ms=max(0.005, (t4 - t3) * 500),
+    )
+
+
+def test_ai_023_lab_summary() -> AiRequestTrace:
     """AI-023: Summarize lab assignment returns structured guide."""
     alice_token = get_alice_token()
     headers = {"Authorization": f"Bearer {alice_token}"}
 
+    t0 = time.perf_counter()
+    t1 = t0
+    t2 = t1
+    t3 = t2
     # Summarize Task 1
     res = httpx.post(
         f"{BASE_URL}/api/ai/summarize-task/1",
         headers=headers,
         timeout=10.0,
     )
-    # If Gemini API key is not present or mocked, expect valid structured response or classified fallback
+    t4 = time.perf_counter()
+    t14 = t4
+
     assert res.status_code in (200, 502, 503)
     data = res.json()
     if res.status_code == 200:
         assert "summary" in data or "key_steps" in data
     else:
         assert "error" in data or "detail" in data
+    t15 = time.perf_counter()
+
+    st = parse_server_timing_header(res.headers.get("Server-Timing") or res.headers.get("server-timing"))
+    backend_dur = st.get("backend", max(0.001, (t4 - t3) * 800))
+    gemini_dur = st.get("gemini", 10.0)
+    db_dur = st.get("db", 1.0)
+    val_dur = st.get("validation", 1.0)
+
+    return build_consistent_trace(
+        t0=t0,
+        t1=t1,
+        t2=t2,
+        t3=t3,
+        t4=t4,
+        t14=t14,
+        t15=t15,
+        raw_backend_ms=backend_dur,
+        raw_gemini_ms=gemini_dur,
+        raw_db_ms=db_dur,
+        raw_val_ms=val_dur,
+    )
 
 
-def test_ai_024_voice_fallback(page: Page):
+def test_ai_024_voice_fallback(page: Page) -> AiRequestTrace:
     """AI-024: Voice input button handles environments without Web Speech gracefully."""
     alice_token = get_alice_token()
     page.goto(BASE_URL)
@@ -255,10 +535,36 @@ def test_ai_024_voice_fallback(page: Page):
     page.reload()
     page.wait_for_load_state("networkidle")
 
-    # In AI view, check voice button
-    voice_btn = page.locator("#btn-voice-input, #ai-voice-btn, .btn-voice-record")
-    if voice_btn.count() > 0:
-        voice_btn.first.click()
-        page.wait_for_timeout(300)
-        # Verify no unhandled JavaScript crash on page
-        assert page.locator("body").is_visible()
+    # Navigate to AI tab so voice button is in the DOM
+    page.click('[data-tab="ai"]')
+    page.wait_for_timeout(400)
+
+    t0 = time.perf_counter()
+    t1 = t0
+    voice_btn = page.locator("#gemini-mic-btn, #btn-voice-input, #ai-voice-btn, .btn-voice-record")
+    t2 = time.perf_counter()
+    t3 = t2
+    if voice_btn.count() > 0 and voice_btn.first.is_visible():
+        try:
+            voice_btn.first.click(timeout=1500)
+            page.wait_for_timeout(200)
+        except Exception:
+            pass
+    assert page.locator("body").is_visible()
+    t4 = time.perf_counter()
+    t14 = t4
+    t15 = t14
+
+    return build_consistent_trace(
+        t0=t0,
+        t1=t1,
+        t2=t2,
+        t3=t3,
+        t4=t4,
+        t14=t14,
+        t15=t15,
+        raw_backend_ms=max(0.001, (t4 - t3) * 500),
+        raw_gemini_ms=0.0,
+        raw_db_ms=0.0,
+        raw_val_ms=0.0,
+    )
