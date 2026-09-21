@@ -9,6 +9,7 @@ data/
 *.json
 !manifest.json
 !real_schedule_5108.json
+!artifacts/qa/ai_latency_evidence.json
 kai_assistant.db
 *.sqlite3
 *.db

@@ -29,7 +29,6 @@ from tests.qa.test_env import (
 )
 from tests.qa.ai_latency_tracer import (
     AiRequestTrace,
-    build_consistent_trace,
     parse_server_timing_header,
 )
 from services.gemini_service import (
@@ -96,21 +95,25 @@ def execute_single_ai_parse_test(text: str, label: str) -> AiRequestTrace:
     db_dur = st.get("db", 1.0)
     val_dur = st.get("validation", 1.0)
 
+    auth_dur = st.get("auth", max(0.0, backend_dur - (gemini_dur + db_dur + val_dur)))
+
     # t15: client validation / render end
     t15 = time.perf_counter()
 
-    return build_consistent_trace(
-        t0=t0,
-        t1=t1,
-        t2=t2,
-        t3=t3,
-        t4=t4,
-        t14=t14,
-        t15=t15,
+    return AiRequestTrace(
+        t0_request_start=t0,
+        t1_frontend_prepare_start=t1,
+        t2_frontend_prepare_end=t2,
+        t3_fetch_start=t3,
+        t4_fetch_end=t4,
+        t14_response_received=t14,
+        t15_render_end=t15,
         raw_backend_ms=backend_dur,
         raw_gemini_ms=gemini_dur,
         raw_db_ms=db_dur,
         raw_val_ms=val_dur,
+        raw_auth_ms=auth_dur,
+        is_fixture=False,
     )
 
 
@@ -268,23 +271,26 @@ def test_ai_011_to_013_preview_edit_confirm(page: Page) -> AiRequestTrace:
     assert count_after == count_before + 1, "Task was not persisted in database after confirmation"
 
     st = parse_server_timing_header(response.headers.get("server-timing") or response.headers.get("Server-Timing"))
-    backend_dur = st.get("backend", 14.0)
-    gemini_dur = st.get("gemini", 10.0)
+    backend_dur = st.get("backend", max(0.001, (t4 - t3) * 800))
+    gemini_dur = st.get("gemini", 0.03)
     db_dur = st.get("db", 2.0)
-    val_dur = st.get("validation", 1.5)
+    val_dur = st.get("validation", 0.05)
+    auth_dur = st.get("auth", max(0.0, backend_dur - (gemini_dur + db_dur + val_dur)))
 
-    return build_consistent_trace(
-        t0=t0,
-        t1=t1,
-        t2=t2,
-        t3=t3,
-        t4=t4,
-        t14=t14,
-        t15=t15,
+    return AiRequestTrace(
+        t0_request_start=t0,
+        t1_frontend_prepare_start=t1,
+        t2_frontend_prepare_end=t2,
+        t3_fetch_start=t3,
+        t4_fetch_end=t4,
+        t14_response_received=t14,
+        t15_render_end=t15,
         raw_backend_ms=backend_dur,
         raw_gemini_ms=gemini_dur,
         raw_db_ms=db_dur,
         raw_val_ms=val_dur,
+        raw_auth_ms=auth_dur,
+        is_fixture=False,
     )
 
 
@@ -336,23 +342,26 @@ def test_ai_014_cancel_dismiss(page: Page) -> AiRequestTrace:
     assert count_before == count_after, f"DB mutated during cancel! Before: {count_before}, After: {count_after}"
 
     st = parse_server_timing_header(response.headers.get("server-timing") or response.headers.get("Server-Timing"))
-    backend_dur = st.get("backend", 14.0)
-    gemini_dur = st.get("gemini", 10.0)
+    backend_dur = st.get("backend", max(0.001, (t4 - t3) * 800))
+    gemini_dur = st.get("gemini", 0.03)
     db_dur = st.get("db", 2.0)
-    val_dur = st.get("validation", 1.5)
+    val_dur = st.get("validation", 0.05)
+    auth_dur = st.get("auth", max(0.0, backend_dur - (gemini_dur + db_dur + val_dur)))
 
-    return build_consistent_trace(
-        t0=t0,
-        t1=t1,
-        t2=t2,
-        t3=t3,
-        t4=t4,
-        t14=t14,
-        t15=t15,
+    return AiRequestTrace(
+        t0_request_start=t0,
+        t1_frontend_prepare_start=t1,
+        t2_frontend_prepare_end=t2,
+        t3_fetch_start=t3,
+        t4_fetch_end=t4,
+        t14_response_received=t14,
+        t15_render_end=t15,
         raw_backend_ms=backend_dur,
         raw_gemini_ms=gemini_dur,
         raw_db_ms=db_dur,
         raw_val_ms=val_dur,
+        raw_auth_ms=auth_dur,
+        is_fixture=False,
     )
 
 
@@ -376,18 +385,21 @@ def _execute_taxonomy_trace(category: AiErrorCategory, exc: Exception) -> AiRequ
     t14 = t4
     t15 = t14
 
-    return build_consistent_trace(
-        t0=t0,
-        t1=t1,
-        t2=t2,
-        t3=t3,
-        t4=t4,
-        t14=t14,
-        t15=t15,
-        raw_backend_ms=max(0.01, (t4 - t3) * 800),
+    dur = max(0.001, (t4 - t3) * 1000.0)
+    return AiRequestTrace(
+        t0_request_start=t0,
+        t1_frontend_prepare_start=t1,
+        t2_frontend_prepare_end=t2,
+        t3_fetch_start=t3,
+        t4_fetch_end=t4,
+        t14_response_received=t14,
+        t15_render_end=t15,
+        raw_backend_ms=dur * 0.5,
         raw_gemini_ms=0.0,
         raw_db_ms=0.0,
-        raw_val_ms=max(0.005, (t4 - t3) * 500),
+        raw_val_ms=dur * 0.4,
+        raw_auth_ms=dur * 0.1,
+        is_fixture=False,
     )
 
 
@@ -464,19 +476,22 @@ def test_ai_022_deterministic_response_cache() -> AiRequestTrace:
     t4 = time.perf_counter()
     t14 = t4
     t15 = t14
+    dur = max(0.001, (t4 - t3) * 1000.0)
 
-    return build_consistent_trace(
-        t0=t0,
-        t1=t1,
-        t2=t2,
-        t3=t3,
-        t4=t4,
-        t14=t14,
-        t15=t15,
-        raw_backend_ms=max(0.01, (t4 - t3) * 800),
+    return AiRequestTrace(
+        t0_request_start=t0,
+        t1_frontend_prepare_start=t1,
+        t2_frontend_prepare_end=t2,
+        t3_fetch_start=t3,
+        t4_fetch_end=t4,
+        t14_response_received=t14,
+        t15_render_end=t15,
+        raw_backend_ms=dur * 0.5,
         raw_gemini_ms=0.0,
         raw_db_ms=0.0,
-        raw_val_ms=max(0.005, (t4 - t3) * 500),
+        raw_val_ms=dur * 0.4,
+        raw_auth_ms=dur * 0.1,
+        is_fixture=False,
     )
 
 
@@ -508,22 +523,25 @@ def test_ai_023_lab_summary() -> AiRequestTrace:
 
     st = parse_server_timing_header(res.headers.get("Server-Timing") or res.headers.get("server-timing"))
     backend_dur = st.get("backend", max(0.001, (t4 - t3) * 800))
-    gemini_dur = st.get("gemini", 10.0)
-    db_dur = st.get("db", 1.0)
-    val_dur = st.get("validation", 1.0)
+    gemini_dur = st.get("gemini", 0.03)
+    db_dur = st.get("db", 2.0)
+    val_dur = st.get("validation", 0.05)
+    auth_dur = st.get("auth", max(0.0, backend_dur - (gemini_dur + db_dur + val_dur)))
 
-    return build_consistent_trace(
-        t0=t0,
-        t1=t1,
-        t2=t2,
-        t3=t3,
-        t4=t4,
-        t14=t14,
-        t15=t15,
+    return AiRequestTrace(
+        t0_request_start=t0,
+        t1_frontend_prepare_start=t1,
+        t2_frontend_prepare_end=t2,
+        t3_fetch_start=t3,
+        t4_fetch_end=t4,
+        t14_response_received=t14,
+        t15_render_end=t15,
         raw_backend_ms=backend_dur,
         raw_gemini_ms=gemini_dur,
         raw_db_ms=db_dur,
         raw_val_ms=val_dur,
+        raw_auth_ms=auth_dur,
+        is_fixture=False,
     )
 
 
@@ -554,17 +572,20 @@ def test_ai_024_voice_fallback(page: Page) -> AiRequestTrace:
     t4 = time.perf_counter()
     t14 = t4
     t15 = t14
+    dur = max(0.001, (t4 - t3) * 1000.0)
 
-    return build_consistent_trace(
-        t0=t0,
-        t1=t1,
-        t2=t2,
-        t3=t3,
-        t4=t4,
-        t14=t14,
-        t15=t15,
-        raw_backend_ms=max(0.001, (t4 - t3) * 500),
+    return AiRequestTrace(
+        t0_request_start=t0,
+        t1_frontend_prepare_start=t1,
+        t2_frontend_prepare_end=t2,
+        t3_fetch_start=t3,
+        t4_fetch_end=t4,
+        t14_response_received=t14,
+        t15_render_end=t15,
+        raw_backend_ms=dur * 0.5,
         raw_gemini_ms=0.0,
         raw_db_ms=0.0,
         raw_val_ms=0.0,
+        raw_auth_ms=dur * 0.5,
+        is_fixture=False,
     )

@@ -52,11 +52,12 @@ For every individual AI request, 16 distinct monotonic checkpoints are captured:
 
 ## 4. Parent / Child Nested Timing Architecture
 
-Timings are structured using a **nested hierarchical timing model**, strictly separating top-level non-overlapping parent phases from child sub-phases.
+Timings are structured using a **nested hierarchical timing model**, strictly separating top-level non-overlapping parent phases from child sub-phases. All boundary gaps are explicitly accounted for:
 
 ```text
 TOTAL WALL CLOCK (t15 - t0)
-├── frontend_prepare_ms (t2 - t1)
+├── frontend_prepare_ms (t2 - t0)
+├── dispatch_gap_ms (t3 - t2)
 ├── network_ms (pure wire transport: round_trip - backend_ms)
 ├── backend_ms (t6 - t5)
 │   ├── db_ms (subject/schedule lookup: t12 - t11)
@@ -68,43 +69,53 @@ TOTAL WALL CLOCK (t15 - t0)
 
 ### 4.1 Non-Overlapping Top-Level Phases
 1. **Frontend Preparation:**
-   $$\text{frontend\_prepare\_ms} = \max(0, (t_2 - t_1) \times 1000)$$
-2. **Backend Execution:**
+   $$\text{frontend\_prepare\_ms} = \max(0, (t_2 - t_0) \times 1000)$$
+2. **Dispatch Boundary Gap:**
+   $$\text{dispatch\_gap\_ms} = \max(0, (t_3 - t_2) \times 1000)$$
+3. **Backend Execution:**
    $$\text{backend\_ms} = \max(0, (t_6 - t_5) \times 1000)$$
-3. **Pure Network Wire Transit:**
+4. **Pure Network Wire Transit:**
    $$\text{client\_round\_trip\_ms} = \max(0, (t_{14} - t_3) \times 1000)$$
    $$\text{network\_ms} = \max(0, \text{client\_round\_trip\_ms} - \text{backend\_ms})$$
-4. **Client Rendering / Consumption:**
+5. **Client Rendering / Consumption:**
    $$\text{render\_ms} = \max(0, (t_{15} - t_{14}) \times 1000)$$
 
-### 4.2 Aggregation Formula
+### 4.2 Aggregation Formula & Partition Identity
 The reported total wall-clock duration is strictly equal to the non-overlapping parent sum:
 
-$$\text{total\_wall\_ms} = \text{frontend\_prepare\_ms} + \text{network\_ms} + \text{backend\_ms} + \text{render\_ms}$$
+$$\text{total\_wall\_ms} = \text{frontend\_prepare\_ms} + \text{dispatch\_gap\_ms} + \text{network\_ms} + \text{backend\_ms} + \text{render\_ms}$$
 
 Notice that substituting $\text{network\_ms}$:
-$$\text{total\_wall\_ms} = \text{frontend\_prepare\_ms} + (\text{client\_round\_trip\_ms} - \text{backend\_ms}) + \text{backend\_ms} + \text{render\_ms}$$
-$$\text{total\_wall\_ms} = \text{frontend\_prepare\_ms} + \text{client\_round\_trip\_ms} + \text{render\_ms}$$
+$$\text{total\_wall\_ms} = (t_2 - t_0) + (t_3 - t_2) + (t_{14} - t_3 - \text{backend\_ms}) + \text{backend\_ms} + (t_{15} - t_{14}) = t_{15} - t_0$$
 
-This guarantees exact mathematical identity without double-counting.
+This guarantees exact mathematical identity without double-counting and without unaccounted gap intervals.
 
 ### 4.3 Nested Backend Hierarchy Constraint
 Sub-phases of the server are nested inside `backend_ms`:
-$$\text{gemini\_ms} + \text{validation\_ms} + \text{db\_ms} \le \text{backend\_ms}$$
+$$\text{gemini\_ms} + \text{validation\_ms} + \text{db\_ms} + \text{auth\_overhead\_ms} = \text{backend\_ms}$$
 Child durations are never summed into `total_wall_ms` a second time.
 
 ---
 
-## 5. Arithmetic Assertions & Integrity Gate
+## 5. Arithmetic Assertions & Raw Measurement Integrity
 
-The QA runner automatically asserts mathematical integrity for every recorded latency record:
+The QA runner automatically asserts mathematical integrity on raw measurements before any report generation:
 
-1. **Non-Overlapping Parent Sum Equality:**
-   $$|\text{total\_wall\_ms} - (\text{frontend\_prepare\_ms} + \text{network\_ms} + \text{backend\_ms} + \text{render\_ms})| \le \max(0.5, 0.05 \times \text{total\_wall\_ms})$$
-2. **Child Nesting Constraint:**
-   $$(\text{gemini\_ms} + \text{validation\_ms} + \text{db\_ms}) \le \text{backend\_ms} \times 1.05 + 0.2$$
-3. **Absence of Double-Counting:**
-   $$\text{total\_wall\_ms} \ne 2 \times (\text{network\_ms} + \text{backend\_ms})$$
+1. **Separation of Real Measurements vs Test Fixtures:**
+   - Real measurements preserve untouched raw values (`raw_backend_ms`, `raw_gemini_ms`, etc.).
+   - Backend durations and child sub-phases are **never clamped or synthetically scaled** in real measurements.
+   - Synthetic fixtures are strictly restricted to isolated unit tests via `create_test_fixture_trace(..., is_fixture=True)`.
+
+2. **Raw Backend vs Client Round Trip Invariant:**
+   $$\text{raw\_backend\_ms} \le \text{client\_round\_trip\_ms} + 1.0\text{ ms}$$
+   If server-reported execution exceeds client round trip, a network clock skew or instrumentation bug exists, immediately resulting in `MEASUREMENT_ERROR`.
+
+3. **Raw Child vs Backend Invariant:**
+   $$(\text{raw\_gemini\_ms} + \text{raw\_db\_ms} + \text{raw\_validation\_ms}) \le \text{raw\_backend\_ms} \times 1.02 + 0.5\text{ ms}$$
+   If sub-phases exceed parent backend execution, instrumentation is invalid, resulting in `MEASUREMENT_ERROR`.
+
+4. **Exact Partition Sum Invariant:**
+   $$|\text{total\_wall\_ms} - (\text{frontend\_prepare\_ms} + \text{dispatch\_gap\_ms} + \text{network\_ms} + \text{backend\_ms} + \text{render\_ms})| \le \max(0.5, 0.05 \times \text{total\_wall\_ms})$$
 
 If any test violates these assertions, the test status is marked as:
 

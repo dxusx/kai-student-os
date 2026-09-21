@@ -1,7 +1,8 @@
 """
 KAI Student OS — AI Latency Tracer & Timing Integrity Module.
-Provides high-precision monotonic timestamp tracing (t0..t15) and nested phase breakdown.
-Strict arithmetic assertions: zero double-counting, non-overlapping parent phases, verified child hierarchy.
+Provides high-precision monotonic timestamp tracing (t0..t15) and raw phase breakdown.
+Strict arithmetic assertions: zero double-counting, non-overlapping parent partition, verified child hierarchy.
+Separates REAL MEASUREMENT from TEST FIXTURE.
 """
 
 from __future__ import annotations
@@ -15,7 +16,8 @@ from typing import Any, Dict, Optional, Tuple
 class AiRequestTrace:
     """
     Monotonic timestamp trace for a single AI request lifecycle.
-    All timestamps recorded using time.perf_counter() (monotonic, high-resolution).
+    All client timestamps recorded using time.perf_counter() (monotonic, high-resolution).
+    Server timings obtained via W3C Server-Timing headers or response metadata.
     DateTime subtraction is strictly forbidden.
     """
     t0_request_start: float
@@ -23,51 +25,85 @@ class AiRequestTrace:
     t2_frontend_prepare_end: float
     t3_fetch_start: float
     t4_fetch_end: float
-    t5_backend_start: float
-    t6_backend_end: float
-    t7_gemini_start: float
-    t8_gemini_end: float
-    t9_validation_start: float
-    t10_validation_end: float
-    t11_db_start: float
-    t12_db_end: float
-    t13_response_start: float
     t14_response_received: float
     t15_render_end: float
+    raw_backend_ms: float
+    raw_gemini_ms: float
+    raw_db_ms: float
+    raw_val_ms: float
+    raw_auth_ms: float = 0.0
+    is_fixture: bool = False
+
+    # Optional server monotonic timestamps
+    t5_backend_start: float = 0.0
+    t6_backend_end: float = 0.0
+    t7_gemini_start: float = 0.0
+    t8_gemini_end: float = 0.0
+    t9_validation_start: float = 0.0
+    t10_validation_end: float = 0.0
+    t11_db_start: float = 0.0
+    t12_db_end: float = 0.0
+    t13_response_start: float = 0.0
 
     def compute_metrics(self) -> Dict[str, Any]:
         """
-        Computes non-overlapping parent phases and nested child phases.
+        Computes non-overlapping parent partition and nested child phases from raw measurements.
+        NO clamping. NO scaling. Real measurements are preserved in raw form.
 
-        Hierarchy:
+        Parent Hierarchy:
         TOTAL WALL CLOCK (t15 - t0)
-        ├── frontend_prepare (t2 - t1)
-        ├── network (wire transport: (t14 - t3) - backend)
-        ├── backend (t6 - t5)
-        │   ├── db (t12 - t11)
-        │   ├── gemini (t8 - t7)
-        │   ├── validation (t10 - t9)
-        │   └── auth/overhead (backend - (db + gemini + validation))
-        └── render (t15 - t14)
+        ├── frontend_prepare_ms (t2 - t0)
+        ├── dispatch_gap_ms (t3 - t2)
+        ├── network_ms (pure wire transport: client_round_trip - backend_ms)
+        ├── backend_ms (server execution: raw_backend_ms)
+        │   ├── db_ms (academic subjects & schedule lookup)
+        │   ├── gemini_ms (upstream inference or mock delay)
+        │   ├── validation_ms (Pydantic schema validation & evidence)
+        │   └── auth_overhead_ms (FastAPI routing & serialization)
+        └── render_ms (client-side DOM rendering: t15 - t14)
         """
-        frontend_prepare_ms = max(0.0, (self.t2_frontend_prepare_end - self.t1_frontend_prepare_start) * 1000.0)
-        client_round_trip_ms = max(0.0, (self.t14_response_received - self.t3_fetch_start) * 1000.0)
-        backend_ms = max(0.0, (self.t6_backend_end - self.t5_backend_start) * 1000.0)
+        # 1. Frontend preparation covers [t0, t2]
+        frontend_prepare_ms = max(0.0, (self.t2_frontend_prepare_end - self.t0_request_start) * 1000.0)
         
-        # Wire transport latency (excluding backend processing time)
-        network_ms = max(0.0, client_round_trip_ms - backend_ms)
+        # 2. Dispatch gap between preparation end and fetch invocation
+        dispatch_gap_ms = max(0.0, (self.t3_fetch_start - self.t2_frontend_prepare_end) * 1000.0)
+        
+        # 3. Client round trip covers [t3, t14]
+        client_round_trip_ms = max(0.0, (self.t14_response_received - self.t3_fetch_start) * 1000.0)
+        
+        # Raw backend execution time reported by server
+        backend_ms = self.raw_backend_ms
+        if backend_ms <= 0.0 and self.t6_backend_end > self.t5_backend_start:
+            backend_ms = (self.t6_backend_end - self.t5_backend_start) * 1000.0
+
+        # Pure wire transport: round trip minus server processing time
+        network_ms = client_round_trip_ms - backend_ms
 
         # Child phases inside backend
-        gemini_ms = max(0.0, (self.t8_gemini_end - self.t7_gemini_start) * 1000.0)
-        validation_ms = max(0.0, (self.t10_validation_end - self.t9_validation_start) * 1000.0)
-        db_ms = max(0.0, (self.t12_db_end - self.t11_db_start) * 1000.0)
-        auth_overhead_ms = max(0.0, backend_ms - (gemini_ms + validation_ms + db_ms))
+        gemini_ms = self.raw_gemini_ms
+        if gemini_ms <= 0.0 and self.t8_gemini_end > self.t7_gemini_start:
+            gemini_ms = (self.t8_gemini_end - self.t7_gemini_start) * 1000.0
 
+        db_ms = self.raw_db_ms
+        if db_ms <= 0.0 and self.t12_db_end > self.t11_db_start:
+            db_ms = (self.t12_db_end - self.t11_db_start) * 1000.0
+
+        validation_ms = self.raw_val_ms
+        if validation_ms <= 0.0 and self.t10_validation_end > self.t9_validation_start:
+            validation_ms = (self.t10_validation_end - self.t9_validation_start) * 1000.0
+
+        auth_overhead_ms = backend_ms - (gemini_ms + validation_ms + db_ms)
+
+        # 4. Render covers [t14, t15]
         render_ms = max(0.0, (self.t15_render_end - self.t14_response_received) * 1000.0)
         total_wall_ms = max(0.0, (self.t15_render_end - self.t0_request_start) * 1000.0)
 
+        # Exact partition check sum
+        parent_sum_ms = frontend_prepare_ms + dispatch_gap_ms + network_ms + backend_ms + render_ms
+
         return {
             "frontend_prepare_ms": round(frontend_prepare_ms, 2),
+            "dispatch_gap_ms": round(dispatch_gap_ms, 2),
             "client_round_trip_ms": round(client_round_trip_ms, 2),
             "network_ms": round(network_ms, 2),
             "backend_ms": round(backend_ms, 2),
@@ -77,23 +113,33 @@ class AiRequestTrace:
             "auth_overhead_ms": round(auth_overhead_ms, 2),
             "render_ms": round(render_ms, 2),
             "total_wall_ms": round(total_wall_ms, 2),
-            "measurement_model": "nested",
-            "formula": "total_wall_ms = frontend_prepare_ms + network_ms + backend_ms + render_ms",
+            "parent_sum_ms": round(parent_sum_ms, 2),
+            "is_fixture": self.is_fixture,
+            "measurement_model": "nested_partition",
+            "formula": "total_wall_ms = frontend_prepare_ms + dispatch_gap_ms + network_ms + backend_ms + render_ms",
         }
 
 
 def verify_latency_math(metrics: Dict[str, Any]) -> Tuple[bool, Optional[str]]:
     """
-    Validates arithmetic integrity of the recorded latency breakdown.
-    
+    Validates arithmetic integrity of raw latency measurements without synthetic alterations.
+    Any failure immediately flags MEASUREMENT_ERROR.
+
     Invariants enforced:
-    1. abs(total_wall_ms - sum(non-overlapping parent phases)) <= 5%
-    2. child phases inside backend (gemini + validation + db) <= backend_ms * 1.05
-    3. zero double-counting: total_wall_ms != 2 * (network_ms + backend_ms)
-    4. all metrics non-negative
+    1. RAW INVARIANT: backend_ms <= client_round_trip_ms + 1.0ms tolerance.
+       If backend exceeds round trip, measurement is corrupted.
+    2. RAW INVARIANT: child phases (gemini + validation + db) <= backend_ms * 1.02 + 0.5ms.
+       Children cannot exceed their parent backend container.
+    3. PARTITION INVARIANT: total_wall_ms == sum(parent categories).
+       abs(total_wall_ms - parent_sum) <= max(0.5, 0.05 * total_wall_ms).
+       Every millisecond between t0 and t15 must belong to an explicit category.
+    4. NON-NEGATIVE WIRE LATENCY: network_ms >= -1.0ms.
+       Negative network indicates clock skew or timing inversion.
     """
     total = metrics.get("total_wall_ms", 0.0)
     fe = metrics.get("frontend_prepare_ms", 0.0)
+    gap = metrics.get("dispatch_gap_ms", 0.0)
+    round_trip = metrics.get("client_round_trip_ms", 0.0)
     net = metrics.get("network_ms", 0.0)
     be = metrics.get("backend_ms", 0.0)
     rnd = metrics.get("render_ms", 0.0)
@@ -106,35 +152,37 @@ def verify_latency_math(metrics: Dict[str, Any]) -> Tuple[bool, Optional[str]]:
     if total <= 0.05 and be <= 0.05:
         return (True, None)
 
-    # 1. Parent phase summation check (within 5% or 0.5ms absolute rounding threshold)
-    parent_sum = fe + net + be + rnd
+    # 1. RAW INVARIANT: backend cannot exceed client round trip
+    if be > round_trip + 1.0:
+        return (
+            False,
+            f"Measurement error: raw backend duration ({be:.2f}ms) exceeds client round trip ({round_trip:.2f}ms)"
+        )
+
+    # 2. RAW INVARIANT: nested children cannot exceed parent backend container
+    child_sum = gem + val + db
+    if child_sum > be * 1.02 + 0.5:
+        return (
+            False,
+            f"Measurement error: child phases ({child_sum:.2f}ms = gemini:{gem}+val:{val}+db:{db}) exceed parent backend ({be:.2f}ms)"
+        )
+
+    # 3. PARTITION INVARIANT: total wall clock must equal sum of all parent categories
+    parent_sum = fe + gap + net + be + rnd
     diff = abs(total - parent_sum)
     allowed_tolerance = max(0.5, 0.05 * total)
     if diff > allowed_tolerance:
         return (
             False,
-            f"Arithmetic inconsistency: total_wall_ms ({total}ms) != sum of parent phases ({parent_sum}ms = {fe}+{net}+{be}+{rnd}). Diff: {diff:.2f}ms"
+            f"Measurement error: total_wall_ms ({total:.2f}ms) != sum of parent categories ({parent_sum:.2f}ms = fe:{fe}+gap:{gap}+net:{net}+be:{be}+rnd:{rnd}). Diff: {diff:.2f}ms"
         )
 
-    # 2. Child phase nested constraint: children cannot exceed parent backend time
-    child_sum = gem + val + db
-    if child_sum > be * 1.05 + 0.2:
+    # 4. NEGATIVE LATENCY CHECK: network transport cannot be meaningfully negative
+    if net < -1.0:
         return (
             False,
-            f"Nested hierarchy violation: child phases ({child_sum:.2f}ms = gemini:{gem}+val:{val}+db:{db}) exceed parent backend ({be:.2f}ms)"
+            f"Measurement error: negative wire network latency ({net:.2f}ms) indicates clock skew or timing inversion"
         )
-
-    # 3. Double-counting detection assertion: total must not double-count (net + be)
-    # If someone accidentally did total = round_trip + backend (where round_trip already includes backend),
-    # total would equal net + 2*backend, which is close to 2*(net + be).
-    # Only applies when frontend prepare and render are negligible (<20% of total).
-    if net + be > 2.0 and (fe + rnd) < 0.20 * total:
-        double_counted = 2 * (net + be)
-        if abs(total - double_counted) < 0.05 * total:
-            return (
-                False,
-                f"Double-counting defect detected: total_wall_ms ({total}ms) approximately equals 2*(network + backend) ({double_counted}ms)"
-            )
 
     return (True, None)
 
@@ -167,6 +215,47 @@ def parse_server_timing_header(header_value: Optional[str]) -> Dict[str, float]:
     return timings
 
 
+def create_test_fixture_trace(
+    t0: float = 1000.0,
+    frontend_prepare_ms: float = 2.0,
+    dispatch_gap_ms: float = 0.5,
+    client_round_trip_ms: float = 50.0,
+    backend_ms: float = 30.0,
+    gemini_ms: float = 20.0,
+    db_ms: float = 2.0,
+    val_ms: float = 1.0,
+    render_ms: float = 5.0,
+) -> AiRequestTrace:
+    """
+    TEST FIXTURE ONLY.
+    Constructs a deterministic synthetic AiRequestTrace for unit tests and offline testing.
+    Never used in real measurement pipeline.
+    """
+    t1 = t0
+    t2 = t1 + (frontend_prepare_ms / 1000.0)
+    t3 = t2 + (dispatch_gap_ms / 1000.0)
+    t4 = t3 + (client_round_trip_ms / 1000.0)
+    t14 = t4
+    t15 = t14 + (render_ms / 1000.0)
+
+    return AiRequestTrace(
+        t0_request_start=t0,
+        t1_frontend_prepare_start=t1,
+        t2_frontend_prepare_end=t2,
+        t3_fetch_start=t3,
+        t4_fetch_end=t4,
+        t14_response_received=t14,
+        t15_render_end=t15,
+        raw_backend_ms=backend_ms,
+        raw_gemini_ms=gemini_ms,
+        raw_db_ms=db_ms,
+        raw_val_ms=val_ms,
+        raw_auth_ms=max(0.0, backend_ms - (gemini_ms + db_ms + val_ms)),
+        is_fixture=True,
+    )
+
+
+# Alias for backwards compatibility with tests expecting build_consistent_trace
 def build_consistent_trace(
     t0: float,
     t1: float,
@@ -181,68 +270,35 @@ def build_consistent_trace(
     raw_val_ms: float = 1.0,
 ) -> AiRequestTrace:
     """
-    Constructs an AiRequestTrace ensuring strict non-overlapping parent phases,
-    zero unaccounted dead time, and valid nested child hierarchy.
+    TEST FIXTURE ONLY.
+    Legacy alias for synthetic fixture construction.
     """
-    # Enforce non-negative monotonic progression
-    # Request lifecycle begins with preparation
-    t1 = max(t0, t1)
-    # Align t0 to t1 if t0 preceded t1 so frontend prepare accounts for the opening phase
-    t0 = t1
-    t2 = max(t1, t2)
-    # Network fetch begins immediately when preparation ends
-    t3 = max(t2, t3)
-    t4 = max(t3, t4)
-    t14 = max(t4, t14)
-    t15 = max(t14, t15)
+    fe_ms = max(0.0, (t2 - t0) * 1000.0)
+    gap_ms = max(0.0, (t3 - t2) * 1000.0)
+    round_trip_ms = max(0.001, (t14 - t3) * 1000.0)
+    rnd_ms = max(0.0, (t15 - t14) * 1000.0)
 
-    client_round_trip_sec = max(0.0001, t14 - t3)
-
-    # Backend cannot exceed round-trip wire time
-    backend_sec = min(max(0.00001, raw_backend_ms / 1000.0), client_round_trip_sec * 0.95)
-    network_sec = client_round_trip_sec - backend_sec
-
-    # Scale child phases so their sum stays strictly within parent backend time
-    raw_child_sum_ms = max(0.0001, raw_gemini_ms + raw_db_ms + raw_val_ms)
-    backend_ms = backend_sec * 1000.0
-    if raw_child_sum_ms > backend_ms * 0.95:
-        scale = (backend_ms * 0.90) / raw_child_sum_ms
-        scaled_db_ms = raw_db_ms * scale
-        scaled_gemini_ms = raw_gemini_ms * scale
-        scaled_val_ms = raw_val_ms * scale
+    # In synthetic fixture, ensure backend does not exceed round trip
+    safe_backend = min(raw_backend_ms, round_trip_ms * 0.95)
+    safe_child_sum = raw_gemini_ms + raw_db_ms + raw_val_ms
+    if safe_child_sum > safe_backend * 0.95:
+        scale = (safe_backend * 0.90) / max(0.001, safe_child_sum)
+        g_ms = raw_gemini_ms * scale
+        d_ms = raw_db_ms * scale
+        v_ms = raw_val_ms * scale
     else:
-        scaled_db_ms = raw_db_ms
-        scaled_gemini_ms = raw_gemini_ms
-        scaled_val_ms = raw_val_ms
+        g_ms = raw_gemini_ms
+        d_ms = raw_db_ms
+        v_ms = raw_val_ms
 
-    # Position server timings inside [t3, t14]
-    t5 = t3 + (network_sec / 2.0)
-    t6 = t5 + backend_sec
-    t13 = t6
-
-    # Position nested child phases inside [t5, t6]
-    t11 = t5
-    t12 = t11 + (scaled_db_ms / 1000.0)
-    t7 = t12
-    t8 = t7 + (scaled_gemini_ms / 1000.0)
-    t9 = t8
-    t10 = t9 + (scaled_val_ms / 1000.0)
-
-    return AiRequestTrace(
-        t0_request_start=t0,
-        t1_frontend_prepare_start=t1,
-        t2_frontend_prepare_end=t2,
-        t3_fetch_start=t3,
-        t4_fetch_end=t4,
-        t5_backend_start=t5,
-        t6_backend_end=t6,
-        t7_gemini_start=t7,
-        t8_gemini_end=t8,
-        t9_validation_start=t9,
-        t10_validation_end=t10,
-        t11_db_start=t11,
-        t12_db_end=t12,
-        t13_response_start=t13,
-        t14_response_received=t14,
-        t15_render_end=t15,
+    return create_test_fixture_trace(
+        t0=t0,
+        frontend_prepare_ms=fe_ms,
+        dispatch_gap_ms=gap_ms,
+        client_round_trip_ms=round_trip_ms,
+        backend_ms=safe_backend,
+        gemini_ms=g_ms,
+        db_ms=d_ms,
+        val_ms=v_ms,
+        render_ms=rnd_ms,
     )

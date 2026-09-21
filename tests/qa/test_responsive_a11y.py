@@ -58,30 +58,63 @@ def test_ui_001_to_003_theme_toggle(page: Page):
         page.wait_for_timeout(200)
 
 
+import time
+
+
+def _verify_viewport(page: Page, name: str, width: int, height: int):
+    _login_alice(page)
+    page.set_viewport_size({"width": width, "height": height})
+    page.wait_for_timeout(300)
+
+    has_overflow = page.evaluate("() => document.documentElement.scrollWidth > document.documentElement.clientWidth")
+    assert not has_overflow, f"Horizontal overflow detected on viewport {name} ({width}x{height})"
+
+    shot_path = ARTIFACTS_DIR / f"viewport_{name}.png"
+    try:
+        page.screenshot(path=str(shot_path), full_page=False)
+    except Exception:
+        time.sleep(0.1)
+        page.screenshot(path=str(shot_path), full_page=False)
+
+
+def test_resp_001_desktop(page: Page):
+    """RESP-001: Desktop 1440x900 viewport test."""
+    _verify_viewport(page, "desktop_1440x900", 1440, 900)
+
+
+def test_resp_002_tablet_landscape(page: Page):
+    """RESP-002: Tablet Landscape 1024x768 viewport test."""
+    _verify_viewport(page, "tablet_landscape_1024x768", 1024, 768)
+
+
+def test_resp_003_tablet_portrait(page: Page):
+    """RESP-003: Tablet Portrait 768x1024 viewport test."""
+    _verify_viewport(page, "tablet_portrait_768x1024", 768, 1024)
+
+
+def test_resp_004_mobile_large(page: Page):
+    """RESP-004: Mobile Large 430x932 viewport test."""
+    _verify_viewport(page, "mobile_large_430x932", 430, 932)
+
+
+def test_resp_005_mobile_standard(page: Page):
+    """RESP-005: Mobile Standard 390x844 viewport test."""
+    _verify_viewport(page, "mobile_standard_390x844", 390, 844)
+
+
+def test_resp_006_mobile_small(page: Page):
+    """RESP-006: Mobile Small 360x740 viewport test."""
+    _verify_viewport(page, "mobile_small_360x740", 360, 740)
+
+
 def test_resp_001_to_006_viewports(page: Page):
     """RESP-001..006: Layout integrity and horizontal overflow test across 6 viewports."""
-    _login_alice(page)
-
-    viewports = [
-        {"name": "desktop_1440x900", "width": 1440, "height": 900, "id": "RESP-001"},
-        {"name": "tablet_landscape_1024x768", "width": 1024, "height": 768, "id": "RESP-002"},
-        {"name": "tablet_portrait_768x1024", "width": 768, "height": 1024, "id": "RESP-003"},
-        {"name": "mobile_large_430x932", "width": 430, "height": 932, "id": "RESP-004"},
-        {"name": "mobile_standard_390x844", "width": 390, "height": 844, "id": "RESP-005"},
-        {"name": "mobile_small_360x740", "width": 360, "height": 740, "id": "RESP-006"},
-    ]
-
-    for vp in viewports:
-        page.set_viewport_size({"width": vp["width"], "height": vp["height"]})
-        page.wait_for_timeout(300)
-
-        # Check for horizontal scroll overflow
-        has_overflow = page.evaluate("() => document.documentElement.scrollWidth > document.documentElement.clientWidth")
-        assert not has_overflow, f"Horizontal overflow detected on viewport {vp['name']} ({vp['width']}x{vp['height']})"
-
-        # Capture screenshot evidence
-        shot_path = ARTIFACTS_DIR / f"viewport_{vp['name']}.png"
-        page.screenshot(path=str(shot_path), full_page=False)
+    test_resp_001_desktop(page)
+    test_resp_002_tablet_landscape(page)
+    test_resp_003_tablet_portrait(page)
+    test_resp_004_mobile_large(page)
+    test_resp_005_mobile_standard(page)
+    test_resp_006_mobile_small(page)
 
 
 def test_a11y_001_to_003_keyboard_and_modals(page: Page):
