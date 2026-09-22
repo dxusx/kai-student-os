@@ -1771,25 +1771,26 @@ function setupGeminiEvents() {
     });
   });
 
-  // 2. Auto-resize textarea as user types & capsule state
+  // 2. Auto-resize textarea as user types & composer state
   const composerDock = document.getElementById('ai-composer-dock');
   const updateCapsuleState = () => {
     const hasContent = !!(geminiText && geminiText.value.trim()) || !!attachedImageBase64;
     if (composerDock) {
       composerDock.classList.toggle('has-text', hasContent);
     }
+    if (aiChatSendBtn) {
+      aiChatSendBtn.classList.toggle('has-text', hasContent);
+      aiChatSendBtn.disabled = !hasContent;
+    }
     if (geminiSubmitBtn) {
       geminiSubmitBtn.disabled = !hasContent;
-    }
-    if (aiChatSendBtn) {
-      aiChatSendBtn.disabled = !hasContent;
     }
   };
 
   if (geminiText) {
     const autoResize = () => {
       geminiText.style.height = 'auto';
-      geminiText.style.height = Math.min(140, Math.max(24, geminiText.scrollHeight)) + 'px';
+      geminiText.style.height = Math.min(150, Math.max(50, geminiText.scrollHeight)) + 'px';
       updateCapsuleState();
     };
     geminiText.addEventListener('input', autoResize);
@@ -1803,32 +1804,9 @@ function setupGeminiEvents() {
     });
   }
 
-  // 2b. Plus Button Action Popover Toggle
-  const plusBtn = document.getElementById('ai-plus-menu-btn');
-  const plusMenu = document.getElementById('ai-plus-menu');
-  if (plusBtn && plusMenu) {
-    plusBtn.addEventListener('click', (e) => {
-      e.stopPropagation();
-      const isOpen = plusMenu.classList.toggle('active');
-      plusBtn.classList.toggle('active', isOpen);
-      plusBtn.setAttribute('aria-expanded', isOpen ? 'true' : 'false');
-    });
-    document.addEventListener('click', (e) => {
-      if (!plusMenu.contains(e.target) && e.target !== plusBtn) {
-        plusMenu.classList.remove('active');
-        plusBtn.classList.remove('active');
-        plusBtn.setAttribute('aria-expanded', 'false');
-      }
-    });
-  }
-
   // 3. Image File Attachment
   if (aiAttachBtn && aiFileInput) {
     aiAttachBtn.addEventListener('click', () => {
-      if (plusMenu) {
-        plusMenu.classList.remove('active');
-        if (plusBtn) plusBtn.classList.remove('active');
-      }
       aiFileInput.click();
     });
     aiFileInput.addEventListener('change', (e) => {

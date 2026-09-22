@@ -10,69 +10,51 @@
 
 :root,
 [data-theme="dark"] {
-  /* Level 0: Spatial Canvas */
-  --surface-bg: #0c0e14;
-  --surface-base: #10131b;
-  --surface-ambient-1: rgba(41, 151, 255, 0.05);
-  --surface-ambient-2: rgba(175, 82, 222, 0.03);
+  --bg-canvas: #0c0d10;
+  --bg-subtle: #14161b;
+  --ambient-glow: radial-gradient(circle at 50% 0%, rgba(41, 151, 255, 0.08), transparent 70%);
 
-  /* Level 1: Clean Content Surface (Solid, calm, zero blur overhead on flat cards) */
-  --surface-card: #131722;
-  --surface-card-subtle: #171c2a;
-  --surface-card-border: rgba(255, 255, 255, 0.055);
-  --surface-card-shadow: 0 4px 20px -2px rgba(0, 0, 0, 0.28);
+  /* Материалы Liquid Glass */
+  --glass-bg: rgba(255, 255, 255, 0.04);
+  --glass-bg-elevated: rgba(255, 255, 255, 0.07);
+  --glass-control: rgba(255, 255, 255, 0.08);
+  --glass-border: rgba(255, 255, 255, 0.09);
+  --glass-border-highlight: rgba(255, 255, 255, 0.16);
+  --glass-blur: blur(28px);
+  --glass-saturation: saturate(180%);
 
-  /* Legacy / Aliased Primitives (mapped to clean surfaces) */
-  --glass-l1-bg: var(--surface-card);
-  --glass-l1-border: var(--surface-card-border);
-  --glass-l1-highlight: rgba(255, 255, 255, 0.07);
-  --glass-l1-shadow: var(--surface-card-shadow);
-  --glass-l1-blur: 0px;
+  /* Типографика */
+  --text-primary: #f5f5f7;
+  --text-secondary: rgba(245, 245, 247, 0.62);
+  --text-tertiary: rgba(245, 245, 247, 0.36);
+  --text-dim: rgba(245, 245, 247, 0.24);
 
-  /* Level 2: Clean Card Surface */
-  --glass-l2-bg: var(--surface-card);
-  --glass-l2-border: var(--surface-card-border);
-  --glass-l2-highlight: rgba(255, 255, 255, 0.08);
-  --glass-l2-shadow: var(--surface-card-shadow);
-  --glass-l2-blur: 0px;
-  --glass-l2-saturate: 100%;
+  /* Сдержанные акценты Apple */
+  --accent-blue: #2997ff;
+  --accent-blue-subtle: rgba(41, 151, 255, 0.12);
+  --accent-green: #30d158;
+  --accent-amber: #ff9f0a;
+  --radius-card: 22px;
+  --radius-pill: 9999px;
 
-  /* Level 3: Prominent Interactive Controls (Pills, inputs, chips) */
-  --glass-l3-bg: #181d2a;
-  --glass-l3-border: rgba(255, 255, 255, 0.075);
-  --glass-l3-highlight: rgba(255, 255, 255, 0.12);
-  --glass-l3-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
-  --glass-l3-hover-bg: #202738;
-  --glass-l3-active-bg: #273044;
-  --glass-l3-blur: 0px;
-  --glass-l3-saturate: 100%;
+  /* Aliased Primitives & backwards compatibility */
+  --surface-bg: var(--bg-canvas);
+  --surface-base: var(--bg-subtle);
+  --surface-card: var(--bg-subtle);
+  --surface-card-subtle: #191c24;
+  --surface-card-border: var(--glass-border);
+  --surface-card-shadow: 0 4px 24px -2px rgba(0, 0, 0, 0.35);
 
-  /* Level 4: Authentic Floating Liquid Glass (Reserved for Dock, Sheets, Topbar, Toast, Composer) */
-  --glass-l4-bg: rgba(18, 22, 33, 0.82);
-  --glass-l4-border: rgba(255, 255, 255, 0.085);
-  --glass-l4-highlight: rgba(255, 255, 255, 0.16);
-  --glass-l4-shadow: 0 12px 32px -4px rgba(0, 0, 0, 0.42), 0 0 0 1px rgba(255, 255, 255, 0.06);
-  --glass-l4-blur: 20px;
-  --glass-l4-saturate: 180%;
-
-  /* Typography Colors */
-  --text-primary: #f5f6f8;
-  --text-secondary: #a4adbc;
-  --text-tertiary: #6b7588;
-  --text-dim: #444c5c;
-
-  /* Accent & Status Colors (Calm, purposeful, not neon) */
-  --accent: #2997ff;
+  --accent: var(--accent-blue);
   --accent-hover: #47a6ff;
-  --accent-glow: rgba(41, 151, 255, 0.16);
-  --accent-bg: rgba(41, 151, 255, 0.12);
+  --accent-glow: var(--accent-blue-subtle);
+  --accent-bg: var(--accent-blue-subtle);
   --accent-text: #ffffff;
 
-  --accent-green: #34c759;
-  --accent-green-bg: rgba(52, 199, 89, 0.12);
-  --accent-green-border: rgba(52, 199, 89, 0.24);
+  --accent-green-bg: rgba(48, 209, 88, 0.12);
+  --accent-green-border: rgba(48, 209, 88, 0.24);
 
-  --accent-orange: #ff9f0a;
+  --accent-orange: var(--accent-amber);
   --accent-orange-bg: rgba(255, 159, 10, 0.12);
   --accent-orange-border: rgba(255, 159, 10, 0.24);
 
@@ -83,57 +65,106 @@
   --accent-purple: #af52de;
   --accent-purple-bg: rgba(175, 82, 222, 0.12);
 
-  /* Modal Backdrop */
-  --modal-backdrop-bg: rgba(0, 0, 0, 0.62);
-  --focus-ring: rgba(41, 151, 255, 0.35);
+  --glass-l1-bg: var(--surface-card);
+  --glass-l1-border: var(--surface-card-border);
+  --glass-l1-highlight: var(--glass-border-highlight);
+  --glass-l1-shadow: var(--surface-card-shadow);
+  --glass-l1-blur: 0px;
+
+  --glass-l2-bg: var(--glass-bg);
+  --glass-l2-border: var(--glass-border);
+  --glass-l2-highlight: var(--glass-border-highlight);
+  --glass-l2-shadow: var(--surface-card-shadow);
+  --glass-l2-blur: 0px;
+  --glass-l2-saturate: 100%;
+
+  --glass-l3-bg: var(--glass-control);
+  --glass-l3-border: var(--glass-border);
+  --glass-l3-highlight: var(--glass-border-highlight);
+  --glass-l3-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+  --glass-l3-blur: 0px;
+  --glass-l3-saturate: 100%;
+
+  --glass-l4-bg: rgba(18, 20, 24, 0.72);
+  --glass-l4-border: rgba(255, 255, 255, 0.12);
+  --glass-l4-highlight: rgba(255, 255, 255, 0.16);
+  --glass-l4-shadow: 0 16px 40px rgba(0, 0, 0, 0.45);
+  --glass-l4-blur: 32px;
+  --glass-l4-saturate: 190%;
+
+  --modal-backdrop-bg: rgba(0, 0, 0, 0.65);
+  --focus-ring: rgba(41, 151, 255, 0.4);
 }
 
 /* Light Theme Tokens (Luminous, Crisp Text, Calm Elevation) */
 [data-theme="light"] {
-  /* Level 0: Clean White/Soft Gray Spatial Canvas */
-  --surface-bg: #f4f6fa;
-  --surface-base: #ffffff;
-  --surface-ambient-1: rgba(0, 113, 227, 0.04);
-  --surface-ambient-2: rgba(175, 82, 222, 0.02);
+  --bg-canvas: #f5f5f7;
+  --bg-subtle: #ffffff;
+  --ambient-glow: radial-gradient(circle at 50% 0%, rgba(41, 151, 255, 0.05), transparent 70%);
 
-  /* Level 1: Clean Content Surface (Pure white cards on soft background) */
-  --surface-card: #ffffff;
+  /* Материалы Liquid Glass (Светлая тема) */
+  --glass-bg: rgba(255, 255, 255, 0.65);
+  --glass-bg-elevated: rgba(255, 255, 255, 0.85);
+  --glass-control: rgba(0, 0, 0, 0.05);
+  --glass-border: rgba(0, 0, 0, 0.08);
+  --glass-border-highlight: rgba(255, 255, 255, 0.7);
+  --glass-blur: blur(28px);
+  --glass-saturation: saturate(180%);
+
+  /* Типографика */
+  --text-primary: #1d1d1f;
+  --text-secondary: rgba(29, 29, 31, 0.68);
+  --text-tertiary: rgba(29, 29, 31, 0.42);
+  --text-dim: rgba(29, 29, 31, 0.28);
+
+  /* Сдержанные акценты Apple */
+  --accent-blue: #0071e3;
+  --accent-blue-subtle: rgba(0, 113, 227, 0.1);
+  --accent-green: #34c759;
+  --accent-amber: #ff9500;
+
+  /* Aliased Primitives & backwards compatibility */
+  --surface-bg: var(--bg-canvas);
+  --surface-base: var(--bg-subtle);
+  --surface-card: var(--bg-subtle);
   --surface-card-subtle: #f8fafc;
-  --surface-card-border: rgba(0, 0, 0, 0.055);
-  --surface-card-shadow: 0 2px 12px rgba(0, 0, 0, 0.035), 0 1px 2px rgba(0, 0, 0, 0.02);
+  --surface-card-border: rgba(0, 0, 0, 0.06);
+  --surface-card-shadow: 0 4px 20px -2px rgba(0, 0, 0, 0.06);
 
-  /* Legacy / Aliased Primitives */
+  --accent: var(--accent-blue);
+  --accent-hover: #0077ed;
+  --accent-glow: var(--accent-blue-subtle);
+  --accent-bg: var(--accent-blue-subtle);
+  --accent-text: #ffffff;
+
+  --accent-orange: var(--accent-amber);
+
   --glass-l1-bg: var(--surface-card);
   --glass-l1-border: var(--surface-card-border);
   --glass-l1-highlight: rgba(255, 255, 255, 0.95);
   --glass-l1-shadow: var(--surface-card-shadow);
   --glass-l1-blur: 0px;
 
-  /* Level 2: Clean Card Surface */
-  --glass-l2-bg: var(--surface-card);
-  --glass-l2-border: var(--surface-card-border);
-  --glass-l2-highlight: rgba(255, 255, 255, 0.95);
+  --glass-l2-bg: var(--glass-bg);
+  --glass-l2-border: var(--glass-border);
+  --glass-l2-highlight: var(--glass-border-highlight);
   --glass-l2-shadow: var(--surface-card-shadow);
   --glass-l2-blur: 0px;
   --glass-l2-saturate: 100%;
 
-  /* Level 3: Prominent Interactive Controls */
-  --glass-l3-bg: #f3f5f9;
-  --glass-l3-border: rgba(0, 0, 0, 0.055);
-  --glass-l3-highlight: rgba(255, 255, 255, 1);
+  --glass-l3-bg: var(--glass-control);
+  --glass-l3-border: var(--glass-border);
+  --glass-l3-highlight: var(--glass-border-highlight);
   --glass-l3-shadow: 0 2px 8px rgba(0, 0, 0, 0.03);
-  --glass-l3-hover-bg: #e9ecf2;
-  --glass-l3-active-bg: #dfe4ec;
   --glass-l3-blur: 0px;
   --glass-l3-saturate: 100%;
 
-  /* Level 4: Authentic Floating Liquid Glass */
-  --glass-l4-bg: rgba(255, 255, 255, 0.86);
-  --glass-l4-border: rgba(0, 0, 0, 0.065);
+  --glass-l4-bg: rgba(255, 255, 255, 0.82);
+  --glass-l4-border: rgba(0, 0, 0, 0.08);
   --glass-l4-highlight: rgba(255, 255, 255, 0.95);
-  --glass-l4-shadow: 0 12px 32px -4px rgba(0, 0, 0, 0.08), 0 0 0 1px rgba(0, 0, 0, 0.04);
-  --glass-l4-blur: 20px;
-  --glass-l4-saturate: 180%;
+  --glass-l4-shadow: 0 16px 40px rgba(0, 0, 0, 0.1);
+  --glass-l4-blur: 32px;
+  --glass-l4-saturate: 190%;
 
   /* Typography Colors */
   --text-primary: #111827;
@@ -278,46 +309,70 @@ button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visib
    3. REUSABLE LIQUID GLASS PRIMITIVES (MATERIAL HIERARCHY)
    ========================================================================== */
 
+/* Authentic Liquid Glass Material */
+.liquid-glass {
+  background: var(--glass-bg);
+  backdrop-filter: var(--glass-blur) var(--glass-saturation);
+  -webkit-backdrop-filter: var(--glass-blur) var(--glass-saturation);
+  border: 1px solid var(--glass-border);
+  box-shadow: inset 0 1px 0 var(--glass-border-highlight), 0 8px 32px rgba(0, 0, 0, 0.36);
+}
+
+[data-theme="light"] .liquid-glass {
+  background: var(--glass-bg);
+  border: 1px solid var(--glass-border);
+  box-shadow: inset 0 1px 0 var(--glass-border-highlight), 0 8px 24px rgba(0, 0, 0, 0.06);
+}
+
+.liquid-card {
+  border-radius: var(--radius-card);
+  padding: 20px;
+  background: var(--surface-card);
+  border: 1px solid var(--surface-card-border);
+  box-shadow: var(--surface-card-shadow);
+  transition: transform 0.2s cubic-bezier(0.2, 0.8, 0.2, 1), box-shadow 0.2s ease, border-color 0.2s ease;
+}
+
+.liquid-card:active {
+  transform: scale(0.98);
+}
+
+.liquid-pill {
+  border-radius: var(--radius-pill);
+  border: 1px solid var(--glass-border);
+  padding: 8px 16px;
+  background: var(--glass-control);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+}
+
 /* Level 1: Clean Content Surface (Solid, calm, zero blur overhead on flat cards) */
 .glass-subtle, .surface-card {
   background: var(--surface-card);
   border: 1px solid var(--surface-card-border);
   box-shadow: var(--surface-card-shadow);
-  border-radius: var(--radius-lg);
+  border-radius: var(--radius-card);
   transition: transform var(--duration-fast) var(--ease-apple), background var(--duration-normal) var(--ease-apple), border-color var(--duration-normal) var(--ease-apple), box-shadow var(--duration-normal) var(--ease-apple);
 }
 
 .glass-subtle:hover, .surface-card:hover {
-  border-color: rgba(255, 255, 255, 0.08);
+  border-color: rgba(255, 255, 255, 0.12);
 }
 
 [data-theme="light"] .glass-subtle:hover,
 [data-theme="light"] .surface-card:hover {
-  border-color: rgba(0, 0, 0, 0.08);
+  border-color: rgba(0, 0, 0, 0.1);
 }
 
 /* Level 2: Standard Card Surface */
-.glass, .liquid-card, .ai-studio-card, .course-accordion-card {
+.glass, .ai-studio-card, .course-accordion-card {
   background: var(--surface-card);
   border: 1px solid var(--surface-card-border);
   box-shadow: var(--surface-card-shadow);
-  border-radius: var(--radius-xl);
+  border-radius: var(--radius-card);
   position: relative;
   overflow: hidden;
   transition: transform var(--duration-fast) var(--ease-apple), background var(--duration-normal) var(--ease-apple), border-color var(--duration-normal) var(--ease-apple), box-shadow var(--duration-normal) var(--ease-apple);
-}
-
-/* Authentic Floating Glass Composer */
-.liquid-glass-composer {
-  background: var(--glass-l4-bg);
-  border: 1px solid var(--glass-l4-border);
-  backdrop-filter: blur(var(--glass-l4-blur)) saturate(var(--glass-l4-saturate));
-  -webkit-backdrop-filter: blur(var(--glass-l4-blur)) saturate(var(--glass-l4-saturate));
-  box-shadow: var(--glass-l4-shadow);
-  border-radius: var(--radius-xl);
-  position: relative;
-  overflow: hidden;
-  transition: transform var(--duration-fast) var(--ease-apple), box-shadow var(--duration-normal) var(--ease-apple);
 }
 
 /* Interactive Card Press (Apple System Subtle Scale) */
@@ -728,11 +783,11 @@ button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visib
 }
 
 .intro-greeting {
-  font-size: 2.35rem;
-  font-weight: 800;
-  letter-spacing: -0.035em;
+  font-size: 28px;
+  font-weight: 600;
+  letter-spacing: -0.02em;
   color: var(--text-primary);
-  line-height: 1.1;
+  line-height: 1.2;
   text-align: left;
 }
 
@@ -1087,7 +1142,7 @@ button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visib
   display: flex;
   align-items: center;
   justify-content: center;
-  transition: all var(--duration-fast) var(--ease-apple);
+  transition: all 0.22s cubic-bezier(0.16, 1, 0.3, 1);
   flex-shrink: 0;
   position: relative;
   pointer-events: none;
@@ -1095,20 +1150,20 @@ button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visib
 
 .task-checkbox-hit-area:active .custom-checkbox,
 .custom-checkbox:active {
-  transform: scale(0.92);
+  transform: scale(0.96);
 }
 
 .custom-checkbox svg {
-  width: 13px;
-  height: 13px;
-  stroke: #fff;
+  width: 12px;
+  height: 12px;
+  stroke: #ffffff;
   stroke-width: 2.6;
   stroke-linecap: round;
   stroke-linejoin: round;
   fill: none;
   opacity: 0;
-  transform: none;
-  transition: opacity var(--duration-fast) var(--ease-apple);
+  transform: scale(0.5);
+  transition: opacity 0.2s cubic-bezier(0.16, 1, 0.3, 1), transform 0.2s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 .custom-checkbox.check-confirm,
@@ -1116,12 +1171,20 @@ button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visib
 .task-row.is-done .custom-checkbox {
   background: var(--accent-green);
   border-color: var(--accent-green);
-  transition: background var(--duration-fast) var(--ease-apple), border-color var(--duration-fast) var(--ease-apple);
+  box-shadow: 0 0 12px rgba(48, 209, 88, 0.4);
+  animation: appleReminderFill 0.24s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 .urgent-task-item.is-done .custom-checkbox svg,
 .task-row.is-done .custom-checkbox svg {
   opacity: 1;
+  transform: scale(1);
+}
+
+@keyframes appleReminderFill {
+  0% { transform: scale(0.88); }
+  50% { transform: scale(1.06); }
+  100% { transform: scale(1); }
 }
 
 .urgent-task-title {
@@ -2467,18 +2530,18 @@ button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visib
   position: relative;
   display: flex;
   flex-direction: column;
-  border-radius: var(--radius-md);
-  background: var(--glass-l1-bg);
-  border: 1px solid var(--glass-l1-border);
+  border-radius: var(--radius-card);
+  background: var(--surface-card);
+  border: 1px solid var(--surface-card-border);
   overflow: hidden;
 }
 
 .timeline-event-row {
   display: flex;
   align-items: stretch;
-  padding: 13px 16px;
-  gap: 14px;
-  border-bottom: 1px solid var(--glass-l1-border);
+  padding: 14px 18px;
+  gap: 16px;
+  border-bottom: 1px solid var(--surface-card-border);
   transition: background var(--duration-fast) var(--ease-apple);
   content-visibility: auto;
   contain-intrinsic-size: 0 72px;
@@ -2489,11 +2552,11 @@ button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visib
 }
 
 .timeline-event-row:hover {
-  background: var(--glass-l2-bg);
+  background: var(--glass-control);
 }
 
 .timeline-time-col {
-  width: 68px;
+  width: 64px;
   flex-shrink: 0;
   display: flex;
   flex-direction: column;
@@ -2505,6 +2568,7 @@ button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visib
 .timeline-time-start {
   font-size: 0.94rem;
   font-weight: 600;
+  letter-spacing: -0.01em;
   color: var(--text-primary);
 }
 
@@ -2514,14 +2578,14 @@ button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visib
 }
 
 .timeline-event-bar {
-  width: 3.5px;
+  width: 3px;
   border-radius: var(--radius-pill);
   background: var(--text-tertiary);
   flex-shrink: 0;
 }
 
 .timeline-event-bar.bar-lab {
-  background: var(--accent);
+  background: var(--accent-blue);
 }
 
 .timeline-event-bar.bar-prac {
@@ -2529,7 +2593,7 @@ button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visib
 }
 
 .timeline-event-bar.bar-lec {
-  background: var(--accent-purple);
+  background: var(--accent-amber);
 }
 
 .timeline-event-content {
@@ -2836,33 +2900,42 @@ button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visib
 }
 
 /* ==========================================================================
-   15. LEVEL 4: FLOATING GLASS DOCK (MOBILE TAB BAR)
+   15. LEVEL 4: FLOATING GLASS DOCK (APPLE FLOATING CAPSULE)
    ========================================================================== */
-.liquid-bottom-dock {
+.liquid-bottom-dock,
+.bottom-nav {
   position: fixed;
-  bottom: calc(12px + env(safe-area-inset-bottom, 0px));
-  left: 0;
-  right: 0;
-  margin-left: auto;
-  margin-right: auto;
+  bottom: 16px;
+  left: 16px;
+  right: 16px;
+  width: auto;
+  max-width: 440px;
+  margin: 0 auto;
   z-index: 60;
   display: flex;
   align-items: center;
   gap: 6px;
   padding: 6px 10px;
   border-radius: var(--radius-pill);
-  width: calc(100% - 32px);
-  max-width: 440px;
-  box-shadow: 0 16px 40px -8px rgba(0, 0, 0, 0.48), 0 0 0 1px var(--glass-l4-border);
-  backdrop-filter: blur(var(--glass-l4-blur)) saturate(var(--glass-l4-saturate));
-  -webkit-backdrop-filter: blur(var(--glass-l4-blur)) saturate(var(--glass-l4-saturate));
+  backdrop-filter: blur(32px) saturate(190%);
+  -webkit-backdrop-filter: blur(32px) saturate(190%);
+  background: rgba(18, 20, 24, 0.72);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.45), inset 0 1px 0 rgba(255, 255, 255, 0.15);
   transition: transform var(--duration-normal) var(--ease-apple), opacity var(--duration-fast) var(--ease-apple);
+}
+
+[data-theme="light"] .liquid-bottom-dock,
+[data-theme="light"] .bottom-nav {
+  background: rgba(255, 255, 255, 0.82);
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.1), inset 0 1px 0 rgba(255, 255, 255, 0.8);
 }
 
 .dock-tab {
   flex: 1;
   background: transparent;
-  border: 1px solid transparent;
+  border: none;
   color: var(--text-tertiary);
   font-family: inherit;
   display: flex;
@@ -2876,12 +2949,12 @@ button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visib
   border-radius: var(--radius-pill);
   cursor: pointer;
   touch-action: manipulation;
-  transition: background 0.22s var(--ease-apple), border-color 0.22s var(--ease-apple), box-shadow 0.22s var(--ease-apple), color 0.18s ease, transform 0.14s var(--ease-apple);
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
   position: relative;
 }
 
 .dock-tab:active {
-  transform: scale(0.98);
+  transform: scale(0.96);
 }
 
 .dock-tab:hover {
@@ -2889,10 +2962,15 @@ button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visib
 }
 
 .dock-tab.active {
-  color: var(--accent);
-  background: var(--glass-l2-bg);
-  border-color: var(--glass-l2-highlight);
-  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.12), inset 0 1px 1px rgba(255, 255, 255, 0.15);
+  color: var(--text-primary);
+  background: rgba(255, 255, 255, 0.12);
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.18), inset 0 1px 0 rgba(255, 255, 255, 0.2);
+}
+
+[data-theme="light"] .dock-tab.active {
+  color: #000000;
+  background: rgba(0, 0, 0, 0.06);
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05), inset 0 1px 0 rgba(0, 0, 0, 0.04);
 }
 
 .dock-icon-box {
@@ -3994,17 +4072,17 @@ button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visib
   font-weight: 500;
 }
 
-.ai-mode-switcher-row {
-  display: flex;
+.ai-mode-switcher-row,
+.ai-segmented-control {
+  display: inline-flex;
   align-items: center;
-  gap: 8px;
-  overflow-x: auto;
-  scrollbar-width: none;
-  padding-bottom: 2px;
-}
-
-.ai-mode-switcher-row::-webkit-scrollbar {
-  display: none;
+  padding: 3px;
+  border-radius: var(--radius-pill);
+  background: var(--glass-control);
+  border: 1px solid var(--glass-border);
+  gap: 2px;
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
 }
 
 .ai-mode-chip {
@@ -4012,28 +4090,34 @@ button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visib
   align-items: center;
   gap: 6px;
   padding: 6px 14px;
-  border-radius: 980px;
-  font-size: 0.84rem;
+  border-radius: var(--radius-pill);
+  font-size: 0.82rem;
   font-weight: 500;
   cursor: pointer;
   white-space: nowrap;
-  border: 1px solid var(--border);
-  background: var(--surface-primary);
+  border: 1px solid transparent;
+  background: transparent;
   color: var(--text-secondary);
-  transition: all 0.2s ease;
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 .ai-mode-chip:hover {
-  background: var(--surface-hover, rgba(255, 255, 255, 0.08));
   color: var(--text-primary);
 }
 
 .ai-mode-chip.active {
-  background: var(--accent, #3b82f6);
-  color: #ffffff;
-  border-color: var(--accent, #3b82f6);
-  box-shadow: 0 0 14px rgba(59, 130, 246, 0.35);
+  background: rgba(255, 255, 255, 0.12);
+  color: var(--text-primary);
+  border-color: rgba(255, 255, 255, 0.14);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2), inset 0 1px 0 rgba(255, 255, 255, 0.15);
   font-weight: 600;
+}
+
+[data-theme="light"] .ai-mode-chip.active {
+  background: #ffffff;
+  color: #000000;
+  border-color: rgba(0, 0, 0, 0.08);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
 }
 
 /* Quick Prompts Carousel */
@@ -4359,68 +4443,61 @@ button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visib
 }
 
 /* ==========================================================================
-   AI STUDIO ULTRA-MINIMALIST FLOATING CAPSULE COMPOSER
+   AI STUDIO APPLE FLOATING GLASS CARD COMPOSER
    ========================================================================== */
 
-.ai-composer-dock.ai-capsule-dock {
+.ai-composer,
+.ai-composer-dock {
   position: sticky;
-  bottom: 20px;
+  bottom: 84px;
   z-index: 40;
-  width: 100%;
+  width: calc(100% - 32px);
   max-width: 680px;
-  margin: 0 auto;
-  border-radius: 9999px;
-  padding: 6px 8px 6px 8px;
-  background: rgba(22, 27, 34, 0.78);
-  backdrop-filter: blur(28px) saturate(190%);
-  -webkit-backdrop-filter: blur(28px) saturate(190%);
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  box-shadow: 0 12px 36px rgba(0, 0, 0, 0.4), 0 1px 2px rgba(255, 255, 255, 0.06);
+  margin: 0 auto 16px auto;
+  border-radius: 20px;
+  padding: 14px 18px;
   display: flex;
-  align-items: center;
-  gap: 8px;
-  transition: border-color 0.2s ease, box-shadow 0.2s ease, background 0.2s ease;
+  flex-direction: column;
+  gap: 10px;
+  box-sizing: border-box;
+  transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
-[data-theme="light"] .ai-composer-dock.ai-capsule-dock {
-  background: rgba(255, 255, 255, 0.88);
-  border: 1px solid rgba(0, 0, 0, 0.08);
-  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.08), 0 1px 2px rgba(0, 0, 0, 0.04);
+body.keyboard-active .ai-composer,
+body.keyboard-active .ai-composer-dock {
+  bottom: 16px !important;
 }
 
-.ai-composer-dock.ai-capsule-dock:focus-within {
-  border-color: rgba(59, 130, 246, 0.65);
-  box-shadow: 0 12px 36px rgba(0, 0, 0, 0.45), 0 0 0 2px rgba(59, 130, 246, 0.2);
+@media (min-width: 768px) {
+  .ai-composer,
+  .ai-composer-dock {
+    bottom: 24px;
+    width: 100%;
+  }
 }
 
-[data-theme="light"] .ai-composer-dock.ai-capsule-dock:focus-within {
-  border-color: var(--accent, #3b82f6);
-  box-shadow: 0 10px 32px rgba(59, 130, 246, 0.15), 0 0 0 2px rgba(59, 130, 246, 0.2);
+.ai-composer:focus-within,
+.ai-composer-dock:focus-within {
+  border-color: rgba(41, 151, 255, 0.45);
+  box-shadow: inset 0 1px 0 var(--glass-border-highlight), 0 16px 44px rgba(0, 0, 0, 0.5), 0 0 0 2px rgba(41, 151, 255, 0.2);
 }
 
-/* Attachment preview chip floating above the capsule */
+[data-theme="light"] .ai-composer:focus-within,
+[data-theme="light"] .ai-composer-dock:focus-within {
+  border-color: var(--accent-blue);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.8), 0 16px 40px rgba(0, 0, 0, 0.12), 0 0 0 2px rgba(0, 113, 227, 0.2);
+}
+
+/* Attachment preview chip floating inside/above composer */
 .ai-attachment-preview-chip {
-  position: absolute;
-  top: -46px;
-  left: 12px;
+  align-self: flex-start;
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 4px 10px 4px 6px;
-  border-radius: 9999px;
-  background: rgba(22, 27, 34, 0.92);
-  backdrop-filter: blur(20px);
-  -webkit-backdrop-filter: blur(20px);
-  border: 1px solid rgba(255, 255, 255, 0.14);
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3);
-  animation: capsulePillIn 0.2s ease;
-  z-index: 50;
-}
-
-[data-theme="light"] .ai-attachment-preview-chip {
-  background: rgba(255, 255, 255, 0.95);
-  border-color: rgba(0, 0, 0, 0.1);
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.08);
+  padding: 4px 12px 4px 6px;
+  border-radius: var(--radius-pill);
+  animation: capsulePillIn 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  margin-bottom: 2px;
 }
 
 .ai-attachment-preview-chip .attachment-thumb-wrap {
@@ -4439,7 +4516,7 @@ button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visib
 }
 
 .ai-attachment-preview-chip .attachment-name {
-  font-size: 0.76rem;
+  font-size: 0.78rem;
   color: var(--text-secondary);
   font-weight: 500;
 }
@@ -4458,255 +4535,180 @@ button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visib
 }
 
 .ai-attachment-preview-chip .attachment-remove-btn:hover {
-  color: #ef4444;
-  background: rgba(239, 68, 68, 0.1);
+  color: var(--accent-red);
+  background: rgba(255, 69, 58, 0.12);
 }
 
-/* Left: Plus Action Button Wrapper & Popover */
-.ai-plus-wrap {
-  position: relative;
-  display: flex;
-  align-items: center;
-  flex-shrink: 0;
-}
-
-.ai-plus-btn {
-  width: 38px;
-  height: 38px;
-  min-width: 38px;
-  border-radius: 50%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: rgba(255, 255, 255, 0.07);
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  color: var(--text-secondary);
-  cursor: pointer;
-  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
-  padding: 0;
-}
-
-[data-theme="light"] .ai-plus-btn {
-  background: rgba(0, 0, 0, 0.04);
-  border-color: rgba(0, 0, 0, 0.08);
-  color: var(--text-secondary);
-}
-
-.ai-plus-btn:hover {
-  background: rgba(255, 255, 255, 0.14);
-  color: var(--text-primary);
-  transform: scale(1.05);
-}
-
-[data-theme="light"] .ai-plus-btn:hover {
-  background: rgba(0, 0, 0, 0.08);
-  color: var(--text-primary);
-}
-
-.ai-plus-btn.active .plus-icon {
-  transform: rotate(45deg);
-}
-
-.plus-icon {
-  transition: transform 0.25s cubic-bezier(0.16, 1, 0.3, 1);
-}
-
-/* Popover Action Menu */
-.ai-plus-popover {
-  position: absolute;
-  bottom: 48px;
-  left: 0;
-  min-width: 180px;
-  background: rgba(22, 27, 34, 0.94);
-  backdrop-filter: blur(28px) saturate(190%);
-  -webkit-backdrop-filter: blur(28px) saturate(190%);
-  border: 1px solid rgba(255, 255, 255, 0.14);
-  border-radius: 16px;
-  padding: 6px;
-  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.5), 0 2px 6px rgba(0, 0, 0, 0.3);
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  opacity: 0;
-  transform: translateY(8px) scale(0.95);
-  pointer-events: none;
-  transition: opacity 0.18s ease, transform 0.18s cubic-bezier(0.16, 1, 0.3, 1);
-  z-index: 60;
-}
-
-[data-theme="light"] .ai-plus-popover {
-  background: rgba(255, 255, 255, 0.96);
-  border-color: rgba(0, 0, 0, 0.1);
-  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.12), 0 2px 6px rgba(0, 0, 0, 0.04);
-}
-
-.ai-plus-popover.active {
-  opacity: 1;
-  transform: translateY(0) scale(1);
-  pointer-events: auto;
-}
-
-.ai-popover-item {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 8px 12px;
-  border-radius: 10px;
-  background: transparent;
-  border: none;
-  color: var(--text-primary);
-  font-size: 0.84rem;
-  font-weight: 500;
-  cursor: pointer;
-  transition: background 0.15s ease, color 0.15s ease;
-  white-space: nowrap;
-  text-align: left;
+/* Center Text Input Area (transparent, no borders, 15px font, min-height 50px) */
+.ai-composer-input-wrap {
   width: 100%;
 }
 
-.ai-popover-item svg {
-  color: var(--accent, #3b82f6);
-  flex-shrink: 0;
-}
-
-.ai-popover-item:hover {
-  background: rgba(255, 255, 255, 0.08);
-}
-
-[data-theme="light"] .ai-popover-item:hover {
-  background: rgba(0, 0, 0, 0.05);
-}
-
-/* Dictation pulse animation */
-.ai-popover-item.recording {
-  background: rgba(239, 68, 68, 0.15);
-  color: #ef4444;
-}
-
-/* Center Text Input Area */
-.ai-capsule-input-wrap {
-  flex: 1;
-  display: flex;
-  align-items: center;
-  min-width: 0;
-}
-
+.ai-composer-textarea,
 .ai-composer-dock .ai-capsule-textarea {
   width: 100%;
+  min-height: 50px;
+  max-height: 150px;
   background: transparent !important;
   border: none !important;
   outline: none !important;
   box-shadow: none !important;
   resize: none;
   font-family: inherit;
-  font-size: 0.95rem;
-  line-height: 1.4;
-  color: var(--text-primary);
-  padding: 6px 6px 6px 6px;
-  min-height: 24px;
-  max-height: 120px;
+  font-size: 15px !important;
+  line-height: 1.45;
+  color: #ffffff !important;
+  padding: 0 !important;
+  margin: 0;
   box-sizing: border-box;
   overflow-y: auto;
   scrollbar-width: thin;
   scrollbar-color: rgba(255, 255, 255, 0.2) transparent;
+  transition: height 0.15s ease;
 }
 
+[data-theme="light"] .ai-composer-textarea,
+[data-theme="light"] .ai-composer-dock .ai-capsule-textarea {
+  color: #1d1d1f !important;
+}
+
+.ai-composer-textarea::placeholder,
 .ai-composer-dock .ai-capsule-textarea::placeholder {
   color: var(--text-tertiary);
+  font-size: 15px;
   font-weight: 400;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
 }
 
-/* Right Action Buttons Group */
-.ai-capsule-actions-right {
+/* Bottom Row of Tools */
+.ai-composer-toolbar {
   display: flex;
   align-items: center;
-  gap: 6px;
-  flex-shrink: 0;
+  justify-content: space-between;
+  width: 100%;
+  gap: 8px;
 }
 
-/* Quick Parse Task Pill (Hidden by default, reveals when input has text) */
-.ai-task-pill-btn {
-  height: 34px;
-  padding: 0 12px;
-  border-radius: 9999px;
-  display: none;
+.ai-toolbar-left {
+  display: flex;
   align-items: center;
-  gap: 6px;
-  background: rgba(255, 255, 255, 0.08);
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  color: var(--text-secondary);
-  font-size: 0.8rem;
-  font-weight: 500;
-  cursor: pointer;
-  white-space: nowrap;
-  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  gap: 8px;
+  flex-wrap: wrap;
 }
 
-.ai-composer-dock.has-text .ai-task-pill-btn {
-  display: inline-flex !important;
-  animation: capsulePillIn 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+.ai-toolbar-right {
+  display: flex;
+  align-items: center;
+  margin-left: auto;
 }
 
-@keyframes capsulePillIn {
-  from { opacity: 0; transform: scale(0.9); }
-  to { opacity: 1; transform: scale(1); }
-}
-
-.ai-task-pill-btn:hover {
-  background: rgba(255, 255, 255, 0.14);
-  border-color: var(--accent, #3b82f6);
-  color: var(--text-primary);
-}
-
-[data-theme="light"] .ai-task-pill-btn {
-  background: rgba(0, 0, 0, 0.05);
-  border-color: rgba(0, 0, 0, 0.08);
-  color: var(--text-secondary);
-}
-
-[data-theme="light"] .ai-task-pill-btn:hover {
-  background: rgba(0, 0, 0, 0.08);
-  border-color: var(--accent, #3b82f6);
-  color: var(--text-primary);
-}
-
-/* Send Button */
-.ai-capsule-send-btn {
-  width: 38px;
-  height: 38px;
-  min-width: 38px;
+/* Round 36x36px glass tool buttons (attach & mic) */
+.ai-tool-btn {
+  width: 36px;
+  height: 36px;
+  min-width: 36px;
   border-radius: 50%;
   display: flex;
   align-items: center;
   justify-content: center;
-  background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
-  border: none;
-  color: #ffffff;
+  background: var(--glass-control);
+  border: 1px solid var(--glass-border);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  color: var(--text-secondary);
   cursor: pointer;
-  box-shadow: 0 4px 14px rgba(37, 99, 235, 0.38);
-  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
   padding: 0;
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  position: relative;
 }
 
+.ai-tool-btn:hover {
+  color: var(--text-primary);
+  background: rgba(255, 255, 255, 0.14);
+  transform: scale(1.05);
+}
+
+.ai-tool-btn:active {
+  transform: scale(0.96);
+}
+
+.ai-tool-btn.recording {
+  background: rgba(255, 69, 58, 0.2);
+  border-color: var(--accent-red);
+  color: var(--accent-red);
+}
+
+/* Quick parse pill button [В задачи] */
+.ai-task-pill-btn {
+  height: 36px;
+  padding: 0 14px;
+  border-radius: var(--radius-pill);
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: var(--glass-control);
+  border: 1px solid var(--glass-border);
+  color: var(--text-secondary);
+  font-size: 0.82rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  white-space: nowrap;
+}
+
+.ai-task-pill-btn:hover {
+  background: rgba(255, 255, 255, 0.14);
+  border-color: var(--accent-blue);
+  color: var(--text-primary);
+}
+
+.ai-task-pill-btn:active {
+  transform: scale(0.96);
+}
+
+/* Apple style Send Button: 36x36px circular with upward arrow ↑ */
+.ai-send-btn,
+.ai-capsule-send-btn {
+  width: 36px;
+  height: 36px;
+  min-width: 36px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--glass-control);
+  border: 1px solid var(--glass-border);
+  color: var(--text-tertiary);
+  cursor: pointer;
+  padding: 0;
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.ai-composer.has-text .ai-send-btn,
+.ai-composer-dock.has-text .ai-send-btn,
+.ai-send-btn.has-text,
+.ai-capsule-send-btn.has-text {
+  background: var(--accent-blue);
+  border-color: var(--accent-blue);
+  color: #ffffff;
+  box-shadow: 0 4px 14px rgba(41, 151, 255, 0.4);
+}
+
+.ai-send-btn:hover,
 .ai-capsule-send-btn:hover {
-  transform: scale(1.06);
-  box-shadow: 0 6px 18px rgba(37, 99, 235, 0.5);
-  filter: brightness(1.08);
+  transform: scale(1.05);
 }
 
+.ai-send-btn:active,
 .ai-capsule-send-btn:active {
-  transform: scale(0.94);
+  transform: scale(0.96);
 }
 
+.ai-send-btn:disabled,
 .ai-capsule-send-btn:disabled {
   opacity: 0.35;
   cursor: not-allowed;
   transform: none;
   box-shadow: none;
-  filter: none;
 }
 
 /* Spinner and Chat Media */
@@ -4733,35 +4735,6 @@ button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visib
 
 @keyframes aiSpin {
   to { transform: rotate(360deg); }
-}
-
-/* Mobile Responsiveness for Capsule */
-@media (max-width: 767px) {
-  .ai-composer-dock.ai-capsule-dock {
-    bottom: calc(76px + env(safe-area-inset-bottom, 0px));
-    padding: 5px 6px 5px 6px;
-    gap: 6px;
-    border-radius: 9999px;
-  }
-  .ai-plus-btn,
-  .ai-capsule-send-btn {
-    width: 34px;
-    height: 34px;
-    min-width: 34px;
-  }
-  .ai-composer-dock .ai-capsule-textarea {
-    font-size: 0.88rem;
-    min-height: 22px;
-  }
-  .ai-task-pill-btn {
-    height: 32px;
-    padding: 0 9px;
-    font-size: 0.74rem;
-  }
-}
-
-body.keyboard-active .ai-composer-dock.ai-capsule-dock {
-  bottom: 8px;
 }
 
 
