@@ -4358,73 +4358,358 @@ button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visib
   transform: translateY(-1px);
 }
 
-/* Floating Composer Dock & Input Bar */
-.ai-composer-dock {
-  position: sticky;
-  bottom: 16px;
-  z-index: 20;
-  border-radius: 20px;
-  padding: 8px 12px;
-  background: rgba(22, 27, 34, 0.85);
-  backdrop-filter: blur(24px);
-  -webkit-backdrop-filter: blur(24px);
-  border: 1px solid var(--border);
-  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.35);
-  margin-top: auto;
-}
+/* ==========================================================================
+   AI STUDIO ULTRA-MINIMALIST FLOATING CAPSULE COMPOSER
+   ========================================================================== */
 
-.composer-main-row {
+.ai-composer-dock.ai-capsule-dock {
+  position: sticky;
+  bottom: 20px;
+  z-index: 40;
+  width: 100%;
+  max-width: 680px;
+  margin: 0 auto;
+  border-radius: 9999px;
+  padding: 6px 8px 6px 8px;
+  background: rgba(22, 27, 34, 0.78);
+  backdrop-filter: blur(28px) saturate(190%);
+  -webkit-backdrop-filter: blur(28px) saturate(190%);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  box-shadow: 0 12px 36px rgba(0, 0, 0, 0.4), 0 1px 2px rgba(255, 255, 255, 0.06);
   display: flex;
   align-items: center;
   gap: 8px;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease, background 0.2s ease;
 }
 
-.ai-attachment-preview-bar {
+[data-theme="light"] .ai-composer-dock.ai-capsule-dock {
+  background: rgba(255, 255, 255, 0.88);
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.08), 0 1px 2px rgba(0, 0, 0, 0.04);
+}
+
+.ai-composer-dock.ai-capsule-dock:focus-within {
+  border-color: rgba(59, 130, 246, 0.65);
+  box-shadow: 0 12px 36px rgba(0, 0, 0, 0.45), 0 0 0 2px rgba(59, 130, 246, 0.2);
+}
+
+[data-theme="light"] .ai-composer-dock.ai-capsule-dock:focus-within {
+  border-color: var(--accent, #3b82f6);
+  box-shadow: 0 10px 32px rgba(59, 130, 246, 0.15), 0 0 0 2px rgba(59, 130, 246, 0.2);
+}
+
+/* Attachment preview chip floating above the capsule */
+.ai-attachment-preview-chip {
+  position: absolute;
+  top: -46px;
+  left: 12px;
   display: flex;
   align-items: center;
-  gap: 10px;
-  padding: 6px 8px 8px 8px;
-  border-bottom: 1px solid var(--border);
-  margin-bottom: 6px;
+  gap: 8px;
+  padding: 4px 10px 4px 6px;
+  border-radius: 9999px;
+  background: rgba(22, 27, 34, 0.92);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3);
+  animation: capsulePillIn 0.2s ease;
+  z-index: 50;
 }
 
-.attachment-thumb-wrap {
-  position: relative;
-  width: 44px;
-  height: 44px;
-  border-radius: 8px;
+[data-theme="light"] .ai-attachment-preview-chip {
+  background: rgba(255, 255, 255, 0.95);
+  border-color: rgba(0, 0, 0, 0.1);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.08);
+}
+
+.ai-attachment-preview-chip .attachment-thumb-wrap {
+  width: 26px;
+  height: 26px;
+  border-radius: 6px;
   overflow: hidden;
-  border: 1px solid var(--border);
+  position: relative;
   flex-shrink: 0;
 }
 
-.attachment-thumb-img {
+.ai-attachment-preview-chip .attachment-thumb-img {
   width: 100%;
   height: 100%;
   object-fit: cover;
 }
 
-.attachment-remove-btn {
-  position: absolute;
-  top: 1px;
-  right: 1px;
-  width: 16px;
-  height: 16px;
-  border-radius: 50%;
-  background: rgba(0, 0, 0, 0.75);
-  color: #ffffff;
+.ai-attachment-preview-chip .attachment-name {
+  font-size: 0.76rem;
+  color: var(--text-secondary);
+  font-weight: 500;
+}
+
+.ai-attachment-preview-chip .attachment-remove-btn {
+  background: transparent;
   border: none;
+  color: var(--text-tertiary);
   cursor: pointer;
+  padding: 2px;
   display: flex;
   align-items: center;
   justify-content: center;
+  border-radius: 50%;
+  transition: color 0.15s ease, background 0.15s ease;
 }
 
-.attachment-name {
-  font-size: 0.8rem;
+.ai-attachment-preview-chip .attachment-remove-btn:hover {
+  color: #ef4444;
+  background: rgba(239, 68, 68, 0.1);
+}
+
+/* Left: Plus Action Button Wrapper & Popover */
+.ai-plus-wrap {
+  position: relative;
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+}
+
+.ai-plus-btn {
+  width: 38px;
+  height: 38px;
+  min-width: 38px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(255, 255, 255, 0.07);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  padding: 0;
+}
+
+[data-theme="light"] .ai-plus-btn {
+  background: rgba(0, 0, 0, 0.04);
+  border-color: rgba(0, 0, 0, 0.08);
   color: var(--text-secondary);
 }
 
+.ai-plus-btn:hover {
+  background: rgba(255, 255, 255, 0.14);
+  color: var(--text-primary);
+  transform: scale(1.05);
+}
+
+[data-theme="light"] .ai-plus-btn:hover {
+  background: rgba(0, 0, 0, 0.08);
+  color: var(--text-primary);
+}
+
+.ai-plus-btn.active .plus-icon {
+  transform: rotate(45deg);
+}
+
+.plus-icon {
+  transition: transform 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+/* Popover Action Menu */
+.ai-plus-popover {
+  position: absolute;
+  bottom: 48px;
+  left: 0;
+  min-width: 180px;
+  background: rgba(22, 27, 34, 0.94);
+  backdrop-filter: blur(28px) saturate(190%);
+  -webkit-backdrop-filter: blur(28px) saturate(190%);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 16px;
+  padding: 6px;
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.5), 0 2px 6px rgba(0, 0, 0, 0.3);
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  opacity: 0;
+  transform: translateY(8px) scale(0.95);
+  pointer-events: none;
+  transition: opacity 0.18s ease, transform 0.18s cubic-bezier(0.16, 1, 0.3, 1);
+  z-index: 60;
+}
+
+[data-theme="light"] .ai-plus-popover {
+  background: rgba(255, 255, 255, 0.96);
+  border-color: rgba(0, 0, 0, 0.1);
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.12), 0 2px 6px rgba(0, 0, 0, 0.04);
+}
+
+.ai-plus-popover.active {
+  opacity: 1;
+  transform: translateY(0) scale(1);
+  pointer-events: auto;
+}
+
+.ai-popover-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 12px;
+  border-radius: 10px;
+  background: transparent;
+  border: none;
+  color: var(--text-primary);
+  font-size: 0.84rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease;
+  white-space: nowrap;
+  text-align: left;
+  width: 100%;
+}
+
+.ai-popover-item svg {
+  color: var(--accent, #3b82f6);
+  flex-shrink: 0;
+}
+
+.ai-popover-item:hover {
+  background: rgba(255, 255, 255, 0.08);
+}
+
+[data-theme="light"] .ai-popover-item:hover {
+  background: rgba(0, 0, 0, 0.05);
+}
+
+/* Dictation pulse animation */
+.ai-popover-item.recording {
+  background: rgba(239, 68, 68, 0.15);
+  color: #ef4444;
+}
+
+/* Center Text Input Area */
+.ai-capsule-input-wrap {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  min-width: 0;
+}
+
+.ai-composer-dock .ai-capsule-textarea {
+  width: 100%;
+  background: transparent !important;
+  border: none !important;
+  outline: none !important;
+  box-shadow: none !important;
+  resize: none;
+  font-family: inherit;
+  font-size: 0.95rem;
+  line-height: 1.4;
+  color: var(--text-primary);
+  padding: 6px 6px 6px 6px;
+  min-height: 24px;
+  max-height: 120px;
+  box-sizing: border-box;
+  overflow-y: auto;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 255, 255, 0.2) transparent;
+}
+
+.ai-composer-dock .ai-capsule-textarea::placeholder {
+  color: var(--text-tertiary);
+  font-weight: 400;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Right Action Buttons Group */
+.ai-capsule-actions-right {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+/* Quick Parse Task Pill (Hidden by default, reveals when input has text) */
+.ai-task-pill-btn {
+  height: 34px;
+  padding: 0 12px;
+  border-radius: 9999px;
+  display: none;
+  align-items: center;
+  gap: 6px;
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  color: var(--text-secondary);
+  font-size: 0.8rem;
+  font-weight: 500;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.ai-composer-dock.has-text .ai-task-pill-btn {
+  display: inline-flex !important;
+  animation: capsulePillIn 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@keyframes capsulePillIn {
+  from { opacity: 0; transform: scale(0.9); }
+  to { opacity: 1; transform: scale(1); }
+}
+
+.ai-task-pill-btn:hover {
+  background: rgba(255, 255, 255, 0.14);
+  border-color: var(--accent, #3b82f6);
+  color: var(--text-primary);
+}
+
+[data-theme="light"] .ai-task-pill-btn {
+  background: rgba(0, 0, 0, 0.05);
+  border-color: rgba(0, 0, 0, 0.08);
+  color: var(--text-secondary);
+}
+
+[data-theme="light"] .ai-task-pill-btn:hover {
+  background: rgba(0, 0, 0, 0.08);
+  border-color: var(--accent, #3b82f6);
+  color: var(--text-primary);
+}
+
+/* Send Button */
+.ai-capsule-send-btn {
+  width: 38px;
+  height: 38px;
+  min-width: 38px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
+  border: none;
+  color: #ffffff;
+  cursor: pointer;
+  box-shadow: 0 4px 14px rgba(37, 99, 235, 0.38);
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  padding: 0;
+}
+
+.ai-capsule-send-btn:hover {
+  transform: scale(1.06);
+  box-shadow: 0 6px 18px rgba(37, 99, 235, 0.5);
+  filter: brightness(1.08);
+}
+
+.ai-capsule-send-btn:active {
+  transform: scale(0.94);
+}
+
+.ai-capsule-send-btn:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+  transform: none;
+  box-shadow: none;
+  filter: none;
+}
+
+/* Spinner and Chat Media */
 .user-attached-thumb {
   margin-bottom: 8px;
 }
@@ -4448,6 +4733,35 @@ button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visib
 
 @keyframes aiSpin {
   to { transform: rotate(360deg); }
+}
+
+/* Mobile Responsiveness for Capsule */
+@media (max-width: 767px) {
+  .ai-composer-dock.ai-capsule-dock {
+    bottom: calc(76px + env(safe-area-inset-bottom, 0px));
+    padding: 5px 6px 5px 6px;
+    gap: 6px;
+    border-radius: 9999px;
+  }
+  .ai-plus-btn,
+  .ai-capsule-send-btn {
+    width: 34px;
+    height: 34px;
+    min-width: 34px;
+  }
+  .ai-composer-dock .ai-capsule-textarea {
+    font-size: 0.88rem;
+    min-height: 22px;
+  }
+  .ai-task-pill-btn {
+    height: 32px;
+    padding: 0 9px;
+    font-size: 0.74rem;
+  }
+}
+
+body.keyboard-active .ai-composer-dock.ai-capsule-dock {
+  bottom: 8px;
 }
 
 

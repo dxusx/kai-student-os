@@ -375,64 +375,75 @@
       <!-- 5. Structured Preview in Glass Sheet (Used by task parser and test_ai_013/014) -->
       <div id="gemini-result-card" class="gemini-result-wrapper" style="display: none;"></div>
 
-      <!-- 6. Floating Glass Input Bar with Attachment Preview -->
-      <div class="ai-composer-dock glass-floating">
+      <!-- 6. Floating Glass Capsule (AI Studio Minimalist Composer) -->
+      <div class="ai-composer-dock ai-capsule-dock" id="ai-composer-dock">
         
-        <!-- Image Attachment Preview Thumbnail -->
-        <div id="ai-attachment-preview" class="ai-attachment-preview-bar" style="display: none;">
+        <!-- Image Attachment Preview Chip (Floats above capsule) -->
+        <div id="ai-attachment-preview" class="ai-attachment-preview-chip glass-subtle" style="display: none;">
           <div class="attachment-thumb-wrap">
             <img id="ai-attachment-thumb" src="" alt="Прикрепленное изображение" class="attachment-thumb-img">
-            <button id="ai-remove-attachment-btn" class="attachment-remove-btn" title="Удалить изображение" aria-label="Удалить изображение">
-              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M18 6L6 18M6 6l12 12"/></svg>
+            <button type="button" id="ai-remove-attachment-btn" class="attachment-remove-btn" title="Удалить изображение" aria-label="Удалить изображение">
+              <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M18 6L6 18M6 6l12 12"/></svg>
             </button>
           </div>
           <span class="attachment-name" id="ai-attachment-name">Изображение прикреплено</span>
         </div>
 
-        <div class="composer-main-row">
-          <!-- File Attachment Picker Button -->
-          <input type="file" id="ai-file-input" accept="image/*" style="display: none;" aria-label="Выбрать изображение">
-          <button id="ai-attach-btn" class="composer-circle-btn glass-control" title="Прикрепить изображение конспекта/задания" aria-label="Прикрепить изображение">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/>
+        <!-- Left: Action Plus Button & Popover Menu -->
+        <div class="ai-plus-wrap" id="ai-plus-wrap">
+          <button type="button" id="ai-plus-menu-btn" class="ai-capsule-btn ai-plus-btn glass-control" title="Действия и вложения" aria-label="Действия и вложения" aria-expanded="false">
+            <svg class="plus-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">
+              <line x1="12" y1="5" x2="12" y2="19"></line>
+              <line x1="5" y1="12" x2="19" y2="12"></line>
             </svg>
           </button>
 
-          <!-- Voice Dictation Button (Web Speech API) -->
-          <button id="gemini-mic-btn" class="composer-circle-btn glass-control" title="Голосовой ввод" aria-label="Голосовой ввод">
-            <span class="mic-glow-ring"></span>
-            <svg class="mic-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
-              <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/>
-              <path d="M19 10v2a7 7 0 0 1-14 0v-2"/>
-              <line x1="12" y1="19" x2="12" y2="23"/>
-              <line x1="8" y1="23" x2="16" y2="23"/>
+          <!-- Popover Menu with Attach and Voice -->
+          <div id="ai-plus-menu" class="ai-plus-popover glass-card" role="menu" aria-label="Вложения и действия">
+            <input type="file" id="ai-file-input" accept="image/*" style="display: none;" aria-label="Выбрать изображение">
+            <button type="button" id="ai-attach-btn" class="ai-popover-item" role="menuitem" title="Прикрепить изображение конспекта/задания">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/>
+              </svg>
+              <span>Фото / Конспект</span>
+            </button>
+            <button type="button" id="gemini-mic-btn" class="ai-popover-item" role="menuitem" title="Голосовой ввод">
+              <span class="mic-glow-ring"></span>
+              <svg class="mic-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/>
+                <path d="M19 10v2a7 7 0 0 1-14 0v-2"/>
+                <line x1="12" y1="19" x2="12" y2="23"/>
+                <line x1="8" y1="23" x2="16" y2="23"/>
+              </svg>
+              <span>Голосовой ввод</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- Center: Text input (retains id="gemini-text-input" and classes for QA) -->
+        <div class="ai-capsule-input-wrap">
+          <textarea id="gemini-text-input" class="composer-textarea ai-capsule-textarea" rows="1" placeholder="Спросите что-нибудь или поставьте задачу..."></textarea>
+        </div>
+
+        <!-- Right: Action Buttons (Task pill reveals on text input; Send button always present) -->
+        <div class="ai-capsule-actions-right">
+          <!-- Quick Parse Button (calls /api/ai/parse-task, tested in AI-013/014) -->
+          <button type="button" id="gemini-submit-btn" class="ai-task-pill-btn glass-control" title="Распознать как задачу в расписание" aria-label="Распознать в задачу">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/>
+              <rect x="8" y="2" width="8" height="4" rx="1" ry="1"/>
             </svg>
+            <span>В задачи</span>
           </button>
 
-          <!-- Auto-expanding Textarea (retains id="gemini-text-input" for QA compatibility) -->
-          <div class="composer-input-area">
-            <textarea id="gemini-text-input" class="composer-textarea" rows="1" placeholder="Спроси о расписании, задачах или надиктуй..."></textarea>
-          </div>
-
-          <!-- Buttons Cluster -->
-          <div class="composer-buttons-cluster">
-            <!-- Quick Parse Button (calls /api/ai/parse-task, tested in AI-013/014) -->
-            <button id="gemini-submit-btn" class="composer-circle-btn glass-control" title="Распознать как задачу в расписание" aria-label="Распознать в задачу">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
-                <path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/>
-                <rect x="8" y="2" width="8" height="4" rx="1" ry="1"/>
-              </svg>
-            </button>
-
-            <!-- AI Studio Send Button (calls /api/ai/chat) -->
-            <button id="ai-chat-send-btn" class="composer-submit-btn glass-control" title="Отправить в AI Studio" aria-label="Отправить в AI Studio">
-              <span class="send-spinner" id="ai-send-spinner" style="display: none;"></span>
-              <svg id="ai-send-icon" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round">
-                <line x1="22" y1="2" x2="11" y2="13"></line>
-                <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
-              </svg>
-            </button>
-          </div>
+          <!-- AI Studio Send Button (calls /api/ai/chat) -->
+          <button type="button" id="ai-chat-send-btn" class="ai-capsule-send-btn" title="Отправить в AI Studio" aria-label="Отправить в AI Studio">
+            <span class="send-spinner" id="ai-send-spinner" style="display: none;"></span>
+            <svg id="ai-send-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round">
+              <line x1="22" y1="2" x2="11" y2="13"></line>
+              <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
+            </svg>
+          </button>
         </div>
       </div>
 

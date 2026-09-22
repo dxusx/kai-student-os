@@ -1771,14 +1771,26 @@ function setupGeminiEvents() {
     });
   });
 
-  // 2. Auto-resize textarea as user types
+  // 2. Auto-resize textarea as user types & capsule state
+  const composerDock = document.getElementById('ai-composer-dock');
+  const updateCapsuleState = () => {
+    const hasContent = !!(geminiText && geminiText.value.trim()) || !!attachedImageBase64;
+    if (composerDock) {
+      composerDock.classList.toggle('has-text', hasContent);
+    }
+    if (geminiSubmitBtn) {
+      geminiSubmitBtn.disabled = !hasContent;
+    }
+    if (aiChatSendBtn) {
+      aiChatSendBtn.disabled = !hasContent;
+    }
+  };
+
   if (geminiText) {
     const autoResize = () => {
       geminiText.style.height = 'auto';
-      geminiText.style.height = Math.min(140, Math.max(38, geminiText.scrollHeight)) + 'px';
-      if (geminiSubmitBtn) {
-        geminiSubmitBtn.disabled = !geminiText.value.trim() && !attachedImageBase64;
-      }
+      geminiText.style.height = Math.min(140, Math.max(24, geminiText.scrollHeight)) + 'px';
+      updateCapsuleState();
     };
     geminiText.addEventListener('input', autoResize);
 
@@ -1791,9 +1803,34 @@ function setupGeminiEvents() {
     });
   }
 
+  // 2b. Plus Button Action Popover Toggle
+  const plusBtn = document.getElementById('ai-plus-menu-btn');
+  const plusMenu = document.getElementById('ai-plus-menu');
+  if (plusBtn && plusMenu) {
+    plusBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const isOpen = plusMenu.classList.toggle('active');
+      plusBtn.classList.toggle('active', isOpen);
+      plusBtn.setAttribute('aria-expanded', isOpen ? 'true' : 'false');
+    });
+    document.addEventListener('click', (e) => {
+      if (!plusMenu.contains(e.target) && e.target !== plusBtn) {
+        plusMenu.classList.remove('active');
+        plusBtn.classList.remove('active');
+        plusBtn.setAttribute('aria-expanded', 'false');
+      }
+    });
+  }
+
   // 3. Image File Attachment
   if (aiAttachBtn && aiFileInput) {
-    aiAttachBtn.addEventListener('click', () => aiFileInput.click());
+    aiAttachBtn.addEventListener('click', () => {
+      if (plusMenu) {
+        plusMenu.classList.remove('active');
+        if (plusBtn) plusBtn.classList.remove('active');
+      }
+      aiFileInput.click();
+    });
     aiFileInput.addEventListener('change', (e) => {
       const file = e.target.files && e.target.files[0];
       if (!file) return;
@@ -1802,6 +1839,7 @@ function setupGeminiEvents() {
         attachedImageBase64 = evt.target.result;
         if (aiPreviewThumb) aiPreviewThumb.src = attachedImageBase64;
         if (aiPreviewBar) aiPreviewBar.style.display = 'flex';
+        updateCapsuleState();
         showToast('Изображение прикреплено к сообщению');
       };
       reader.readAsDataURL(file);
@@ -1813,6 +1851,7 @@ function setupGeminiEvents() {
       attachedImageBase64 = null;
       if (aiFileInput) aiFileInput.value = '';
       if (aiPreviewBar) aiPreviewBar.style.display = 'none';
+      updateCapsuleState();
       showToast('Вложение удалено');
     });
   }
