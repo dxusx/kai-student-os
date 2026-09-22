@@ -995,6 +995,8 @@ button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visib
   align-items: center;
   justify-content: center;
   box-sizing: border-box;
+  white-space: nowrap !important;
+  flex-shrink: 0;
 }
 
 /* ==========================================================================
@@ -1214,7 +1216,10 @@ button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visib
   background: var(--accent-red-bg);
   color: var(--accent-red);
   border: 1px solid var(--accent-red-border);
+  white-space: nowrap !important;
   flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
 }
 
 /* Today Peek List (Apple Inset Grouped) */
@@ -1324,7 +1329,7 @@ button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visib
   background: transparent !important;
   border: none !important;
   box-shadow: none !important;
-  padding: 6px 0;
+  padding: 6px 6px;
   color: var(--text-primary);
   font-family: inherit;
   font-size: 0.96rem;
@@ -1364,11 +1369,10 @@ button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visib
 .pill-suggestion {
   flex-shrink: 0;
   white-space: nowrap;
-  font-size: 0.8rem;
+  font-size: 0.78rem;
   font-weight: 500;
-  min-height: 44px;
-  min-width: 44px;
-  padding: 10px 16px;
+  min-height: 34px;
+  padding: 6px 14px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -1814,11 +1818,13 @@ button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visib
   border-radius: var(--radius-pill);
   background: var(--accent-bg);
   color: var(--accent);
-  border: 1px solid transparent;
+  border: 1px solid var(--accent-blue-subtle, transparent);
   display: inline-flex;
   align-items: center;
   gap: 4px;
   cursor: pointer;
+  white-space: nowrap !important;
+  flex-shrink: 0;
   transition: all var(--duration-fast) var(--ease-apple);
 }
 
@@ -1872,6 +1878,10 @@ button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visib
   background: var(--glass-l3-bg);
   border: 1px solid var(--glass-l3-border);
   color: var(--text-secondary);
+  white-space: nowrap !important;
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
 }
 
 .mini-badge.mini-lab {
@@ -2603,10 +2613,11 @@ button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visib
 
 .timeline-event-header {
   display: flex;
-  align-items: flex-start;
+  flex-wrap: wrap;
+  align-items: center;
   justify-content: space-between;
-  gap: 10px;
-  margin-bottom: 3px;
+  gap: 6px 12px;
+  margin-bottom: 5px;
 }
 
 .timeline-event-title {
@@ -2615,6 +2626,8 @@ button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visib
   color: var(--text-primary);
   line-height: 1.35;
   margin: 0;
+  min-width: 0;
+  flex: 1 1 180px;
 }
 
 .timeline-teacher {
@@ -2695,15 +2708,24 @@ button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visib
 .timeline-chips-row {
   display: flex;
   align-items: center;
+  flex-wrap: wrap;
   gap: 6px;
+  flex-shrink: 0;
 }
 
 .building-badge {
   font-size: 0.72rem;
   font-weight: 600;
-  padding: 2px 7px;
+  padding: 3px 8px;
   border-radius: var(--radius-xs);
   background: var(--glass-l1-bg);
+  white-space: nowrap !important;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
 }
 
 .building-badge.bldg-2 { color: var(--accent); background: var(--accent-bg); }
@@ -4276,8 +4298,10 @@ button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visib
 
 .ai-mode-switcher-row,
 .ai-segmented-control {
-  display: inline-flex;
+  display: flex;
   align-items: center;
+  width: 100%;
+  max-width: 100%;
   padding: 3px;
   border-radius: var(--radius-pill);
   background: var(--glass-control);
@@ -4285,15 +4309,18 @@ button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visib
   gap: 2px;
   backdrop-filter: blur(16px);
   -webkit-backdrop-filter: blur(16px);
+  box-sizing: border-box;
 }
 
 .ai-mode-chip {
+  flex: 1;
   display: inline-flex;
   align-items: center;
-  gap: 6px;
-  padding: 6px 14px;
+  justify-content: center;
+  gap: 5px;
+  padding: 6px 12px;
   border-radius: var(--radius-pill);
-  font-size: 0.82rem;
+  font-size: 0.8rem;
   font-weight: 500;
   cursor: pointer;
   white-space: nowrap;
@@ -4301,6 +4328,29 @@ button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visib
   background: transparent;
   color: var(--text-secondary);
   transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  min-width: 0;
+}
+
+.chip-label-short {
+  display: none;
+}
+
+.chip-label-full {
+  display: inline;
+}
+
+@media (max-width: 520px) {
+  .ai-mode-chip {
+    padding: 6px 6px;
+    font-size: 0.76rem;
+    gap: 4px;
+  }
+  .chip-label-short {
+    display: inline;
+  }
+  .chip-label-full {
+    display: none;
+  }
 }
 
 .ai-mode-chip:hover {

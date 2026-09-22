@@ -2523,7 +2523,7 @@ function renderTimeline(lessons) {
           '<h4 class="timeline-event-title">' + escapeHtml(lesson.discipl_name) + '</h4>' +
           '<div class="timeline-chips-row">' +
             (lesson.is_changed ? '<span class="building-badge badge-changed" title="Оперативная замена или перенос пары">⚡ Замена/Перенос</span>' : '') +
-            '<span class="building-badge ' + chip.cls + '">' + chip.label + '</span>' +
+            '<span class="building-badge ' + chip.cls + '" title="' + escapeHtml(chip.label) + '">' + chip.label + '</span>' +
             (lesson.discipl_type ? '<span class="building-badge">' + escapeHtml(lesson.discipl_type) + '</span>' : '') +
             homeworkBadge +
           '</div>' +
