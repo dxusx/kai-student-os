@@ -53,15 +53,18 @@
 - **Защищенное скачивание через бэкенд (`/api/tasks/{task_id}/download`)**: авторизация исключительно через заголовок `Authorization: Bearer <token>`, `X-App-Token` или сессионную cookie (`kai_app_auth_token`). Токены в URL (`?token=`) строго запрещены (401) для предотвращения утечки в access-логи; проверка прав владения задачей (403), сандбоксинг хранилища вложений (`data/attachments`) и надежная защита от Path Traversal (`../`, `..\`, `%2e%2e`).
 - **Smart Split**: автоматическое разделение контента на **«Сдачу работ»** (лабораторные, практики, расчеты) и **«Библиотеку методичек»** (программы дисциплин, ФОС, лекции, вопросы к зачету).
 
-### 4. 🤖 AI-ассистент на базе Google Gemini Flash
-- **Распознавание свободной речи (Structured Outputs)**:
-  - Принимает сообщение из чата старосты (например, *"К следующей среде по физике сделать отчет по лабе 2 и распечатать титульник"*).
-  - С помощью Pydantic-схемы извлекает предмет, суть задачи, дедлайн и требования, сопоставляет с предметом в SQLite и создает задачу со статусом `todo`.
-- **Голосовой ввод Web Speech API**: встроенный микрофон 🎙️ в Bottom Sheet модалке для быстрой диктовки задач на ходу.
-- **Multi-Model Fallback**: автоматический каскадный переход при высокой нагрузке (`gemini-3.8-flash` ➔ `gemini-2.5-flash-lite` ➔ `gemini-3.5-flash-lite`), гарантирующий аптайм 99.9%.
+### 4. 🤖 Google AI Studio 2.0 на базе Gemini & Function Calling
+- **Мультирежимная рабочая среда (Studio Workspace)**:
+  - 🎓 **Репетитор**: глубокое объяснение сложных тем, формул и теории с форматированием Markdown и подсветкой синтаксиса кода.
+  - ⚡ **Органайзер (Function Calling / Agentic Tools)**: автономное выполнение действий с данными студента — чтение расписания на день/неделю (`get_schedule`), анализ горящих дедлайнов (`get_pending_tasks`), автоматическое создание задач (`add_new_task`).
+  - 📝 **Генератор шпаргалок**: моментальный выжим сути лабораторной работы, требований и порядка действий.
+  - 👁️ **Vision & Multimodal**: анализ фотографий рукописных конспектов, методичек и заданий с доски.
+- **Ультра-минималистичная плавающая капсула (Floating Capsule Composer)**:
+  - Компактный эргономичный док в стиле современных мобильных ОС с кнопкой действий `+` (вложения фото и голосовой ввод Web Speech API 🎙️), авто-раскрывающейся кнопкой `[📋 В задачи]` и отправкой в диалог `[🚀]`.
+- **Multi-Model Fallback**: автоматический каскадный переход при высокой нагрузке (`gemini-2.5-flash` ➔ `gemini-2.5-flash-lite`), гарантирующий аптайм 99.9%.
 - **✨ Разбор лабораторной (Cheat-Sheet)**:
   - Генерирует емкую шпаргалку для студента: **Суть работы** (в 2 предложениях), **Что взять с собой** (титульник, отчет, флешка, калькулятор) и **Порядок действий** (пошаговый алгоритм выполнения).
-  - Результаты кэшируются в оперативной памяти для моментального повторного открытия.
+  - Результаты детерминированно кэшируются на сервере (`DeterministicAiCache`) для моментального повторного открытия.
 
 ### 5. 📬 Proactive Alert System (Telegram-бот на Aiogram 3)
 - **Утренний брифинг (07:30)**: маршрутный лист на день с номерами корпусов, аудиторий, преподавателями и списком того, что нужно взять с собой.
@@ -114,9 +117,9 @@ flowchart TD
 
 <div align="center">
 
-| Bento-Grid Главная (Hero & Live Пара) | Gemini AI Voice Bottom Sheet | Шпаргалка к лабораторной работе |
+| Bento-Grid Главная (Hero & Live Пара) | Google AI Studio (Чат & Floating Capsule) | Шпаргалка к лабораторной работе |
 |:---:|:---:|:---:|
-| <img src="docs/screenshots/hero_dashboard.png" width="260" alt="Bento Dashboard" /> | <img src="docs/screenshots/gemini_assistant.png" width="260" alt="Gemini Voice Input" /> | <img src="docs/screenshots/gemini_lab_cheat_sheet.png" width="260" alt="Lab Cheat Sheet" /> |
+| <img src="docs/screenshots/hero_dashboard.png" width="260" alt="Bento Dashboard" /> | <img src="docs/screenshots/gemini_assistant.png" width="260" alt="Google AI Studio" /> | <img src="docs/screenshots/gemini_lab_cheat_sheet.png" width="260" alt="Lab Cheat Sheet" /> |
 
 | Таймлайн расписания с корпусами | Управление сдаваемыми работами | Библиотека методичек с прямым скачиванием |
 |:---:|:---:|:---:|
@@ -151,7 +154,7 @@ kai_assistant/
 │   ├── gemini_service.py      # Интеграция Google Gemini AI (NLP парсинг и шпаргалки)
 │   └── tunnel.py              # Менеджер безопасных HTTPS-туннелей (Cloudflare / SSH)
 ├── static/                    # Мобильный PWA клиент
-│   ├── index.html             # Разметка Bento-Dashboard, Gemini Bottom Sheet и модалок
+│   ├── index.html             # Разметка Bento-Dashboard, Google AI Studio, модалок и PWA
 │   ├── styles.css             # Дизайн-система Google Material You / Dark Theme
 │   ├── app.js                 # Клиентская логика, Web Speech API, офлайн-кэш
 │   ├── sw.js                  # Service Worker PWA (Network-first стратегия)
