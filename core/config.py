@@ -35,6 +35,8 @@ class Settings(BaseSettings):
 
     gemini_api_key: Optional[str] = Field(default=None, alias="GEMINI_API_KEY")
     gemini_model: str = Field(default="gemini-3.6-flash", alias="GEMINI_MODEL")
+    gemini_proxy_url: Optional[str] = Field(default=None, alias="GEMINI_PROXY_URL")
+    gemini_base_url: Optional[str] = Field(default=None, alias="GEMINI_BASE_URL")
 
     app_auth_token: str = Field(default="", alias="APP_AUTH_TOKEN")
 
