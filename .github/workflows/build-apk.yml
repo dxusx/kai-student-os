@@ -1,0 +1,98 @@
+name: Build & Release Android APK (Capacitor)
+
+on:
+  push:
+    branches: [ main, master ]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build-android-apk:
+    name: Build KAI CapyPara APK
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+
+      - name: Set up Java 17 (JDK)
+        uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+
+      - name: Set up Android SDK Tools
+        uses: android-actions/setup-android@v3
+
+      - name: Install NPM Dependencies
+        run: |
+          npm install
+
+      - name: Initialize & Sync Capacitor Android
+        run: |
+          if [ ! -d "android" ]; then
+            echo "Adding Android platform to Capacitor project..."
+            npx cap add android
+          fi
+          echo "Syncing static assets to Android platform..."
+          npx cap sync android
+
+      - name: Build Android APK (Gradle)
+        run: |
+          cd android
+          chmod +x ./gradlew
+          ./gradlew assembleDebug --no-daemon --stacktrace
+          cd ..
+          
+          # Find and copy output APK
+          APK_PATH=$(find android/app/build/outputs/apk/debug -name "*.apk" | head -n 1)
+          if [ -f "$APK_PATH" ]; then
+            echo "Found APK at $APK_PATH, copying to KAI-Capypara.apk..."
+            cp "$APK_PATH" KAI-Capypara.apk
+          else
+            echo "Error: Output APK not found!"
+            exit 1
+          fi
+
+      - name: Upload APK to GitHub Actions Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: KAI-Capypara-APK
+          path: KAI-Capypara.apk
+          if-no-files-found: error
+
+      - name: Publish APK to GitHub Releases
+        uses: softprops/action-gh-release@v2
+        if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master' || github.event_name == 'workflow_dispatch'
+        with:
+          tag_name: v2.2.0-apk
+          name: "🦫 КапиПара КАИ v2.2.0 (Android APK)"
+          draft: false
+          prerelease: false
+          generate_release_notes: false
+          body: |
+            ### 🦫 Мобильное приложение «КапиПара КАИ» (Android)
+
+            Официальная сборка мобильного приложения KAI Student OS в дизайне **«КапиПара»**.
+
+            #### ✨ Что нового в v2.2.0:
+            - **Стиль «КапиПара»**: темно-графитовая палитра (`#121316`), теплый янтарный акцент (`#f59e0b`), логотип-маскот капибары в шапке.
+            - **Лента дней недели**: горизонтальный скролл плашек с датами (`Пн 14`, `Вт 15`...) и яркой подсветкой сегодняшнего дня.
+            - **Карточки расписания**: наглядный блок времени слева, цветные бейджи `[ Лекция ]`, `[ Практика ]`, `[ Лаб. работа ]`, чипы аудиторий и преподавателей, светящийся бейдж `⚡ Замена/Перенос`.
+            - **Прокачанный Gemini AI**: свободный академический тьютор (`temperature=0.75`), поддержка multi-turn диалога, Markdown, формул LaTeX ($...$ и $$...$$) и подсветки синтаксиса кода с быстрым копированием.
+
+            📱 **Установка:**
+            Скачайте прикрепленный файл `KAI-Capypara.apk` прямо на смартфон и откройте для установки.
+          files: |
+            KAI-Capypara.apk
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

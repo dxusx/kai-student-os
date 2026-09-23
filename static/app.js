@@ -1017,30 +1017,48 @@ function renderTodaySchedulePeek() {
     return;
   }
 
-  const lessons = state.todaySchedule.slice(0, 5);
+  const lessons = state.todaySchedule.slice(0, 6);
   let html = '';
   lessons.forEach((l) => {
     const range = getLessonTimeRange(l);
     const chip = getBuildingBadge(l.build_num, l.aud_num);
     const tLower = (l.discipl_type || '').toLowerCase();
-    let stripeClass = 'practice';
-    if (tLower.includes('лаб')) stripeClass = 'lab';
-    else if (tLower.includes('лекц')) stripeClass = 'lecture';
+    let typeClass = 'badge-type-prac';
+    let typeLabel = l.discipl_type || 'Практика';
+    let barClass = 'timeline-event-bar bar-prac';
 
-    html += '<div class="timeline-agenda-row">' +
+    if (tLower.includes('лаб')) {
+      typeClass = 'badge-type-lab';
+      typeLabel = 'Лаб. работа';
+      barClass = 'timeline-event-bar bar-lab';
+    } else if (tLower.includes('лекц') || tLower.includes('лек')) {
+      typeClass = 'badge-type-lec';
+      typeLabel = 'Лекция';
+      barClass = 'timeline-event-bar bar-lec';
+    } else if (tLower.includes('пр')) {
+      typeClass = 'badge-type-prac';
+      typeLabel = 'Практика';
+      barClass = 'timeline-event-bar bar-prac';
+    }
+
+    html += '<div class="timeline-event-row' + (l.is_changed ? ' is-changed' : '') + '">' +
       '<div class="timeline-time-col">' +
         '<span class="timeline-time-start">' + range.startStr + '</span>' +
+        '<span class="timeline-time-divider">—</span>' +
         '<span class="timeline-time-end">' + range.endStr + '</span>' +
       '</div>' +
-      '<div class="timeline-stripe ' + stripeClass + '"></div>' +
-      '<div class="timeline-info-col">' +
-        '<div class="timeline-lesson-title">' + escapeHtml(l.discipl_name) + '</div>' +
-        '<div class="timeline-meta-row">' +
-          (l.is_changed ? '<span class="badge-changed" title="Оперативная замена или перенос пары">⚡ Замена/Перенос</span><span>·</span>' : '') +
-          '<span>' + escapeHtml(l.discipl_type || 'Пара') + '</span>' +
-          '<span>·</span>' +
-          '<span>' + chip.label + '</span>' +
-          (l.prepod_name ? '<span>·</span><span>' + escapeHtml(formatTeacherName(l.prepod_name)) + '</span>' : '') +
+      '<div class="' + barClass + '"></div>' +
+      '<div class="timeline-event-content">' +
+        '<div class="timeline-event-top">' +
+          '<span class="lesson-type-badge ' + typeClass + '">[ ' + escapeHtml(typeLabel) + ' ]</span>' +
+          (l.is_changed ? '<span class="badge-changed" title="Оперативная замена или перенос пары">⚡ Замена/Перенос</span>' : '') +
+        '</div>' +
+        '<div class="timeline-event-header">' +
+          '<h4 class="timeline-event-title">' + escapeHtml(l.discipl_name) + '</h4>' +
+        '</div>' +
+        '<div class="timeline-chips-row">' +
+          '<span class="building-badge ' + chip.cls + '" title="' + escapeHtml(chip.label) + '">🏛️ ' + chip.label + '</span>' +
+          (l.prepod_name ? '<span class="teacher-chip" title="Преподаватель">👤 ' + escapeHtml(formatTeacherName(l.prepod_name)) + '</span>' : '') +
         '</div>' +
       '</div>' +
     '</div>';
@@ -1592,36 +1610,103 @@ window.copyCodeToClipboard = function(btn) {
 
 function renderMarkdown(md) {
   if (!md) return '';
-  let html = escapeHtml(md);
 
-  // 1. Code blocks ```lang\ncode\n```
-  html = html.replace(/```([a-zA-Z0-9_\-\+]*)\n([\s\S]*?)```/g, (match, lang, code) => {
+  // 1. Extract and protect code blocks
+  const codeBlocks = [];
+  let s = md.replace(/```([a-zA-Z0-9_\-\+]*)\n([\s\S]*?)```/g, (match, lang, code) => {
+    const idx = codeBlocks.length;
     const l = lang ? lang.trim() : 'code';
-    return `<div class="code-block-wrapper"><div class="code-block-header"><span class="code-lang">${l}</span><button class="code-copy-btn glass-control" onclick="copyCodeToClipboard(this)">Копировать код</button></div><pre><code class="language-${l}">${code.trim()}</code></pre></div>`;
+    codeBlocks.push({ lang: l, code: code.trim() });
+    return `__CODE_BLOCK_${idx}__`;
   });
 
-  // 2. Inline code `code`
-  html = html.replace(/`([^`\n]+)`/g, '<code class="inline-code">$1</code>');
+  // 2. Extract and protect inline code
+  const inlineCodes = [];
+  s = s.replace(/`([^`\n]+)`/g, (match, code) => {
+    const idx = inlineCodes.length;
+    inlineCodes.push(code);
+    return `__INLINE_CODE_${idx}__`;
+  });
 
-  // 3. Headers
+  // 3. LaTeX display math $$...$$
+  const mathBlocks = [];
+  s = s.replace(/\$\$([\s\S]*?)\$\$/g, (match, tex) => {
+    const idx = mathBlocks.length;
+    const cleanTex = tex.trim();
+    let rendered = '';
+    if (typeof window !== 'undefined' && window.katex) {
+      try {
+        rendered = window.katex.renderToString(cleanTex, { displayMode: true, throwOnError: false });
+      } catch (e) {
+        rendered = `<div class="math-block"><code>\\[${escapeHtml(cleanTex)}\\]</code></div>`;
+      }
+    } else {
+      rendered = `<div class="math-block"><code>\\[${escapeHtml(cleanTex)}\\]</code></div>`;
+    }
+    mathBlocks.push(rendered);
+    return `__MATH_BLOCK_${idx}__`;
+  });
+
+  // 4. LaTeX inline math $...$
+  const inlineMaths = [];
+  s = s.replace(/\$([^\$\n]+)\$/g, (match, tex) => {
+    const idx = inlineMaths.length;
+    const cleanTex = tex.trim();
+    let rendered = '';
+    if (typeof window !== 'undefined' && window.katex) {
+      try {
+        rendered = window.katex.renderToString(cleanTex, { displayMode: false, throwOnError: false });
+      } catch (e) {
+        rendered = `<span class="math-inline">\\(${escapeHtml(cleanTex)}\\)</span>`;
+      }
+    } else {
+      rendered = `<span class="math-inline">\\(${escapeHtml(cleanTex)}\\)</span>`;
+    }
+    inlineMaths.push(rendered);
+    return `__MATH_INLINE_${idx}__`;
+  });
+
+  // 5. Escape HTML in regular prose
+  let html = escapeHtml(s);
+
+  // 6. Headers
   html = html.replace(/^### (.*$)/gim, '<h3>$1</h3>');
   html = html.replace(/^## (.*$)/gim, '<h2>$1</h2>');
   html = html.replace(/^# (.*$)/gim, '<h1>$1</h1>');
 
-  // 4. Bold and italics
+  // 7. Bold and italics
   html = html.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
   html = html.replace(/\*([^*]+)\*/g, '<em>$1</em>');
 
-  // 5. Unordered lists
+  // 8. Lists
   html = html.replace(/^\s*[\-\*]\s+(.*$)/gim, '<li>$1</li>');
   html = html.replace(/(<li>.*<\/li>)/gims, '<ul>$1</ul>');
-
-  // 6. Ordered lists
   html = html.replace(/^\s*\d+\.\s+(.*$)/gim, '<li class="ol-item">$1</li>');
 
-  // 7. Paragraphs
+  // 9. Paragraphs and line breaks
   html = html.replace(/\n\n/g, '</p><p>');
   html = html.replace(/\n/g, '<br/>');
+
+  // 10. Restore Math
+  mathBlocks.forEach((m, idx) => {
+    html = html.replace(`__MATH_BLOCK_${idx}__`, `<div class="katex-display-wrapper">${m}</div>`);
+  });
+  inlineMaths.forEach((m, idx) => {
+    html = html.replace(`__MATH_INLINE_${idx}__`, `<span class="katex-inline-wrapper">${m}</span>`);
+  });
+
+  // 11. Restore Inline code
+  inlineCodes.forEach((c, idx) => {
+    html = html.replace(`__INLINE_CODE_${idx}__`, `<code class="inline-code">${escapeHtml(c)}</code>`);
+  });
+
+  // 12. Restore Code blocks
+  codeBlocks.forEach((b, idx) => {
+    html = html.replace(
+      `__CODE_BLOCK_${idx}__`,
+      `<div class="code-block-wrapper"><div class="code-block-header"><span class="code-lang">${escapeHtml(b.lang)}</span><button class="code-copy-btn glass-control" onclick="copyCodeToClipboard(this)">Копировать код</button></div><pre><code class="language-${escapeHtml(b.lang)}">${escapeHtml(b.code)}</code></pre></div>`
+    );
+  });
 
   return '<p>' + html + '</p>';
 }
@@ -1749,6 +1834,12 @@ function setupGeminiEvents() {
 
   let attachedImageBase64 = null;
   state.aiStudioMode = localStorage.getItem('kai_ai_studio_mode') || 'tutor';
+  try {
+    const savedChat = localStorage.getItem('kai_capypara_ai_chat_history');
+    if (savedChat) state.aiChatHistory = JSON.parse(savedChat);
+  } catch (e) {
+    state.aiChatHistory = [];
+  }
 
   // 1. Mode Switcher Chips
   const modeChips = document.querySelectorAll('.ai-mode-chip');
@@ -1981,20 +2072,18 @@ function setupGeminiEvents() {
           actionsHtml = data.actions.map(act => renderActionWidget(act)).join('');
         }
 
-        const modeLabels = { tutor: '🎓 Репетитор', organizer: '⚡ Органайзер', report: '📝 Генератор отчетов' };
-        const modeBadge = modeLabels[data.mode] || '🎓 Репетитор';
+        const modeLabels = { tutor: '🎓 Тьютор', organizer: '⚡ Органайзер', report: '📝 Отчеты' };
+        const modeBadge = modeLabels[data.mode] || '🎓 Тьютор';
 
         const assistantMsgEl = document.createElement('div');
         assistantMsgEl.className = 'ai-msg-bubble ai-msg-assistant glass-card';
         assistantMsgEl.innerHTML = `
-          <div class="ai-msg-avatar">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
-              <path d="M12 2l2.4 7.2L22 12l-7.6 2.8L12 22l-2.4-7.2L2 12l7.6-2.8z"/>
-            </svg>
+          <div class="ai-msg-avatar" style="background: rgba(245, 158, 11, 0.15); border: 1px solid rgba(245, 158, 11, 0.3); font-size: 1.2rem; display: flex; align-items: center; justify-content: center;">
+            🦫
           </div>
           <div class="ai-msg-content">
             <div class="ai-msg-header">
-              <span class="ai-msg-author">Google AI Studio</span>
+              <span class="ai-msg-author">Gemini AI (КапиПара)</span>
               <span class="ai-msg-mode-badge">${modeBadge}</span>
             </div>
             <div class="ai-msg-body markdown-rendered">
@@ -2011,6 +2100,9 @@ function setupGeminiEvents() {
       state.aiChatHistory.push({ role: 'user', content: text });
       state.aiChatHistory.push({ role: 'model', content: data.response });
       if (state.aiChatHistory.length > 20) state.aiChatHistory = state.aiChatHistory.slice(-20);
+      try {
+        localStorage.setItem('kai_capypara_ai_chat_history', JSON.stringify(state.aiChatHistory));
+      } catch (e) {}
 
     } catch (err) {
       console.error('AI Studio error:', err);
@@ -2429,18 +2521,78 @@ async function openLabSummaryModal(taskId) {
 }
 
 // -------------------------------------------------------------
-// TAB 4: ЕЩЁ (SCHEDULE TIMELINE & BLACKBOARD SYNC)
+// TAB 4: ЕЩЁ (SCHEDULE TIMELINE & BLACKBOARD SYNC - CAPYPARA)
 // -------------------------------------------------------------
-function setupScheduleEvents() {
-  const pills = document.querySelectorAll('#schedule-day-pills .day-pill');
-  pills.forEach((pill) => {
-    pill.addEventListener('click', () => {
+function getWeekDates(referenceDate = new Date()) {
+  const curr = new Date(referenceDate);
+  const day = curr.getDay(); // 0 is Sun, 1 is Mon...
+  const diffToMonday = curr.getDate() - (day === 0 ? 6 : day - 1);
+  const monday = new Date(curr);
+  monday.setDate(diffToMonday);
+  
+  const weekDays = [];
+  const shortNames = ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб'];
+  const todayStr = (new Date()).toDateString();
+  for (let i = 0; i < 6; i++) {
+    const d = new Date(monday);
+    d.setDate(monday.getDate() + i);
+    weekDays.push({
+      dayIndex: i + 1,
+      shortName: shortNames[i],
+      dateNum: d.getDate(),
+      isToday: d.toDateString() === todayStr,
+    });
+  }
+  return weekDays;
+}
+
+function renderDayPillsRibbon(containerId) {
+  const container = document.getElementById(containerId);
+  if (!container) return;
+  const weekDates = getWeekDates();
+  container.innerHTML = weekDates.map((item) => `
+    <button class="day-pill glass-control ${item.isToday ? 'is-today' : ''} ${item.dayIndex === state.scheduleDay ? 'active' : ''}" data-day="${item.dayIndex}" title="${RUSSIAN_WEEKDAYS[item.dayIndex] || ''}">
+      <span class="day-pill-name">${item.shortName}</span>
+      <span class="day-pill-num">${item.dateNum}</span>
+    </button>
+  `).join('');
+
+  container.querySelectorAll('.day-pill').forEach((pill) => {
+    pill.addEventListener('click', async () => {
       const day = parseInt(pill.dataset.day, 10);
       state.scheduleDay = day;
-      pills.forEach((p) => p.classList.toggle('active', parseInt(p.dataset.day, 10) === day));
+      syncDayPillsActive(day);
       loadScheduleData();
+
+      // Also update focus peek if user is on main screen
+      try {
+        const res = await apiFetch(API_BASE + '/api/schedule?day=' + day + '&week=' + state.scheduleParity);
+        if (res.ok) {
+          const data = await res.json();
+          state.todaySchedule = data.lessons || [];
+          renderTodaySchedulePeek();
+          const peekTitle = document.querySelector('#view-focus .schedule-peek-card .card-title-text');
+          if (peekTitle) {
+            const isToday = (day === (new Date().getDay() || 7));
+            peekTitle.textContent = isToday ? 'Пары на сегодня' : `Пары на ${RUSSIAN_WEEKDAYS[day] || 'день'}`;
+          }
+        }
+      } catch (e) {
+        console.warn('Could not update peek for day:', e);
+      }
     });
   });
+}
+
+function syncDayPillsActive(day) {
+  document.querySelectorAll('#schedule-day-pills .day-pill, #focus-day-pills .day-pill').forEach((p) => {
+    p.classList.toggle('active', parseInt(p.dataset.day, 10) === day);
+  });
+}
+
+function setupScheduleEvents() {
+  renderDayPillsRibbon('schedule-day-pills');
+  renderDayPillsRibbon('focus-day-pills');
 }
 
 async function loadScheduleData() {
@@ -2451,9 +2603,7 @@ async function loadScheduleData() {
   if (dayTitle) dayTitle.textContent = RUSSIAN_WEEKDAYS[state.scheduleDay] || 'Расписание';
   if (parityBadge) parityBadge.textContent = (state.scheduleParity === 'чет' ? 'Чётная' : 'Нечётная') + ' неделя';
 
-  document.querySelectorAll('#schedule-day-pills .day-pill').forEach((pill) => {
-    pill.classList.toggle('active', parseInt(pill.dataset.day, 10) === state.scheduleDay);
-  });
+  syncDayPillsActive(state.scheduleDay);
 
   if (!container) return;
 
@@ -2482,15 +2632,10 @@ function renderTimeline(lessons) {
   if (lessons.length === 0) {
     container.innerHTML = '<div class="empty-state-card">' +
       '<div class="empty-state-icon">' +
-        '<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">' +
-          '<rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect>' +
-          '<line x1="16" y1="2" x2="16" y2="6"></line>' +
-          '<line x1="8" y1="2" x2="8" y2="6"></line>' +
-          '<line x1="3" y1="10" x2="21" y2="10"></line>' +
-        '</svg>' +
+        '<span style="font-size: 2rem;">🦫</span>' +
       '</div>' +
-      '<div class="empty-state-title">В этот день занятий нет</div>' +
-      '<div class="empty-state-sub">Для 2-й подгруппы пары не запланированы</div>' +
+      '<div class="empty-state-title">В этот день пар нет</div>' +
+      '<div class="empty-state-sub">Для 2-й подгруппы пары не запланированы. Время отдыхать!</div>' +
     '</div>';
     return;
   }
@@ -2500,10 +2645,24 @@ function renderTimeline(lessons) {
     const timeInfo = getLessonTimeRange(lesson);
     const chip = getBuildingBadge(lesson.build_num, lesson.aud_num);
     const typeLower = (lesson.discipl_type || '').toLowerCase();
-    let barClass = 'timeline-event-bar';
-    if (typeLower.includes('лаб')) barClass += ' bar-lab';
-    else if (typeLower.includes('пр')) barClass += ' bar-prac';
-    else if (typeLower.includes('лек')) barClass += ' bar-lec';
+    
+    let typeClass = 'badge-type-prac';
+    let typeLabel = lesson.discipl_type || 'Практика';
+    let barClass = 'timeline-event-bar bar-prac';
+
+    if (typeLower.includes('лаб')) {
+      typeClass = 'badge-type-lab';
+      typeLabel = 'Лаб. работа';
+      barClass = 'timeline-event-bar bar-lab';
+    } else if (typeLower.includes('лек')) {
+      typeClass = 'badge-type-lec';
+      typeLabel = 'Лекция';
+      barClass = 'timeline-event-bar bar-lec';
+    } else if (typeLower.includes('пр')) {
+      typeClass = 'badge-type-prac';
+      typeLabel = 'Практика';
+      barClass = 'timeline-event-bar bar-prac';
+    }
 
     const homeworkBadge = lesson.todo_tasks_count > 0
       ? '<button type="button" class="timeline-debt-pill glass-control" data-discipl="' + escapeHtml(lesson.discipl_name) + '" title="Перейти к заданиям по дисциплине">' +
@@ -2515,21 +2674,22 @@ function renderTimeline(lessons) {
     html += '<div class="timeline-event-row' + (lesson.is_changed ? ' is-changed' : '') + '">' +
       '<div class="timeline-time-col">' +
         '<span class="timeline-time-start">' + escapeHtml(timeInfo.startStr) + '</span>' +
+        '<span class="timeline-time-divider">—</span>' +
         '<span class="timeline-time-end">' + escapeHtml(timeInfo.endStr) + '</span>' +
       '</div>' +
       '<div class="' + barClass + '"></div>' +
       '<div class="timeline-event-content">' +
+        '<div class="timeline-event-top">' +
+          '<span class="lesson-type-badge ' + typeClass + '">[ ' + escapeHtml(typeLabel) + ' ]</span>' +
+          (lesson.is_changed ? '<span class="badge-changed" title="Оперативная замена или перенос пары">⚡ Замена/Перенос</span>' : '') +
+        '</div>' +
         '<div class="timeline-event-header">' +
           '<h4 class="timeline-event-title">' + escapeHtml(lesson.discipl_name) + '</h4>' +
-          '<div class="timeline-chips-row">' +
-            (lesson.is_changed ? '<span class="building-badge badge-changed" title="Оперативная замена или перенос пары">⚡ Замена/Перенос</span>' : '') +
-            '<span class="building-badge ' + chip.cls + '" title="' + escapeHtml(chip.label) + '">' + chip.label + '</span>' +
-            (lesson.discipl_type ? '<span class="building-badge">' + escapeHtml(lesson.discipl_type) + '</span>' : '') +
-            homeworkBadge +
-          '</div>' +
         '</div>' +
-        '<div class="timeline-meta">' +
-          '<span class="timeline-teacher">' + escapeHtml(formatTeacherName(lesson.prepod_name || 'Преподаватель не указан')) + '</span>' +
+        '<div class="timeline-chips-row">' +
+          '<span class="building-badge ' + chip.cls + '" title="' + escapeHtml(chip.label) + '">🏛️ ' + chip.label + '</span>' +
+          (lesson.prepod_name ? '<span class="teacher-chip" title="Преподаватель">👤 ' + escapeHtml(formatTeacherName(lesson.prepod_name)) + '</span>' : '') +
+          homeworkBadge +
         '</div>' +
       '</div>' +
     '</div>';

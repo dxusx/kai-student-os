@@ -1,0 +1,14 @@
+{
+  "appId": "com.kai.capypara",
+  "appName": "КапиПара КАИ",
+  "webDir": "static",
+  "bundledWebRuntime": false,
+  "server": {
+    "androidScheme": "https",
+    "cleartext": true
+  },
+  "android": {
+    "backgroundColor": "#121316",
+    "allowMixedContent": true
+  }
+}

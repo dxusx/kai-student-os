@@ -1,0 +1,28 @@
+{
+  "name": "kai-capypara",
+  "version": "2.2.0",
+  "description": "KAI Student OS - Мобильное приложение КапиПара КАИ",
+  "main": "static/index.html",
+  "scripts": {
+    "build": "echo 'Static assets ready'",
+    "cap:add": "cap add android",
+    "cap:sync": "cap sync android",
+    "cap:open": "cap open android"
+  },
+  "dependencies": {
+    "@capacitor/core": "^6.0.0",
+    "@capacitor/android": "^6.0.0"
+  },
+  "devDependencies": {
+    "@capacitor/cli": "^6.0.0"
+  },
+  "keywords": [
+    "kai",
+    "capypara",
+    "student-os",
+    "android",
+    "capacitor"
+  ],
+  "author": "KAI Assistant Team",
+  "license": "MIT"
+}

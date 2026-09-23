@@ -11,9 +11,17 @@ data/*
 !manifest.json
 !real_schedule_5108.json
 !artifacts/qa/ai_latency_evidence.json
+!package.json
+!package-lock.json
+!capacitor.config.json
 kai_assistant.db
 *.sqlite3
 *.db
+
+# Node.js & Capacitor & Android
+node_modules/
+android/
+*.apk
 
 # Окружение и кэш
 .venv/
