@@ -1,8 +1,8 @@
 # KAI Student OS — Full QA Acceptance Test Report
 
-**Date:** 2026-09-25 00:20:37  
+**Date:** 2026-09-25 00:45:35  
 **Mode:** LOCAL  
-**Duration:** 156.35s  
+**Duration:** 153.44s  
 **Environment:** Isolated SQLite `data/test_qa/kai_qa.db` on port 8899  
 
 ## Executive Summary
@@ -24,11 +24,11 @@
 
 | ID | Domain | Overall Status | FUNC | API | CONSOLE | NET | DATA | Duration | Diagnostics / Details |
 |---|---|---|---|---|---|---|---|---|---|
-| A11Y-001 | Accessibility | **PASS** | PASS | PASS | PASS | PASS | PASS | 2.527s | Clean |
-| A11Y-002 | Accessibility | **PASS** | PASS | PASS | PASS | PASS | PASS | 2.547s | Clean |
-| A11Y-003 | Accessibility | **PASS** | PASS | PASS | PASS | PASS | PASS | 2.462s | Clean |
+| A11Y-001 | Accessibility | **PASS** | PASS | PASS | PASS | PASS | PASS | 3.066s | Clean |
+| A11Y-002 | Accessibility | **PASS** | PASS | PASS | PASS | PASS | PASS | 2.213s | Clean |
+| A11Y-003 | Accessibility | **PASS** | PASS | PASS | PASS | PASS | PASS | 2.326s | Clean |
 | AI-001 | AI Task Parse Pipeline | **PASS** | PASS | PASS | PASS | PASS | PASS | 0.485s | Clean |
-| AI-002 | AI Task Parse Pipeline | **PASS** | PASS | PASS | PASS | PASS | PASS | 0.006s | Clean |
+| AI-002 | AI Task Parse Pipeline | **PASS** | PASS | PASS | PASS | PASS | PASS | 0.007s | Clean |
 | AI-003 | AI Task Parse Pipeline | **PASS** | PASS | PASS | PASS | PASS | PASS | 0.006s | Clean |
 | AI-004 | AI Task Parse Pipeline | **PASS** | PASS | PASS | PASS | PASS | PASS | 0.006s | Clean |
 | AI-005 | AI Task Parse Pipeline | **PASS** | PASS | PASS | PASS | PASS | PASS | 0.006s | Clean |
@@ -37,10 +37,10 @@
 | AI-008 | AI Task Parse Pipeline | **PASS** | PASS | PASS | PASS | PASS | PASS | 0.014s | Clean |
 | AI-009 | AI Task Parse Pipeline | **PASS** | PASS | PASS | PASS | PASS | PASS | 0.006s | Clean |
 | AI-010 | AI Task Parse Pipeline | **PASS** | PASS | PASS | PASS | PASS | PASS | 0.006s | Clean |
-| AI-011 | AI Preview & Confirm | **PASS** | PASS | PASS | PASS | PASS | PASS | 2.438s | Clean |
-| AI-012 | AI Preview & Confirm | **PASS** | PASS | PASS | PASS | PASS | PASS | 2.524s | Clean |
-| AI-013 | AI Preview & Confirm | **PASS** | PASS | PASS | PASS | PASS | PASS | 2.436s | Clean |
-| AI-014 | AI Preview & Confirm | **PASS** | PASS | PASS | PASS | PASS | PASS | 2.874s | Clean |
+| AI-011 | AI Preview & Confirm | **PASS** | PASS | PASS | PASS | PASS | PASS | 2.507s | Clean |
+| AI-012 | AI Preview & Confirm | **PASS** | PASS | PASS | PASS | PASS | PASS | 2.593s | Clean |
+| AI-013 | AI Preview & Confirm | **PASS** | PASS | PASS | PASS | PASS | PASS | 2.536s | Clean |
+| AI-014 | AI Preview & Confirm | **PASS** | PASS | PASS | PASS | PASS | PASS | 2.819s | Clean |
 | AI-015 | AI Resilience & Errors | **PASS** | PASS | PASS | PASS | PASS | PASS | 0.0s | Clean |
 | AI-016 | AI Resilience & Errors | **PASS** | PASS | PASS | PASS | PASS | PASS | 0.0s | Clean |
 | AI-017 | AI Resilience & Errors | **PASS** | PASS | PASS | PASS | PASS | PASS | 0.0s | Clean |
@@ -49,84 +49,84 @@
 | AI-020 | AI Resilience & Errors | **PASS** | PASS | PASS | PASS | PASS | PASS | 0.0s | Clean |
 | AI-021 | AI Resilience & Errors | **PASS** | PASS | PASS | PASS | PASS | PASS | 0.0s | Clean |
 | AI-022 | AI Resilience & Errors | **PASS** | PASS | PASS | PASS | PASS | PASS | 0.0s | Clean |
-| AI-023 | AI Lab Summary | **PASS** | PASS | PASS | PASS | PASS | PASS | 0.485s | Clean |
-| AI-024 | Voice Input Fallback | **PASS** | PASS | PASS | PASS | PASS | PASS | 2.032s | Clean |
-| AUTH-001 | Web Auth & Identity | **PASS** | PASS | PASS | PASS | PASS | PASS | 0.483s | Clean |
-| AUTH-002 | Web Auth & Identity | **PASS** | PASS | PASS | PASS | PASS | PASS | 4.084s | Clean |
-| AUTH-003 | Web Auth & Identity | **PASS** | PASS | PASS | PASS | PASS | PASS | 1.465s | Clean |
+| AI-023 | AI Lab Summary | **PASS** | PASS | PASS | PASS | PASS | PASS | 0.494s | Clean |
+| AI-024 | Voice Input Fallback | **PASS** | PASS | PASS | PASS | PASS | PASS | 1.905s | Clean |
+| AUTH-001 | Web Auth & Identity | **PASS** | PASS | PASS | PASS | PASS | PASS | 0.485s | Clean |
+| AUTH-002 | Web Auth & Identity | **PASS** | PASS | PASS | PASS | PASS | PASS | 1.809s | Clean |
+| AUTH-003 | Web Auth & Identity | **PASS** | PASS | PASS | PASS | PASS | PASS | 1.39s | Clean |
 | AUTH-004 | Web Auth & Identity | **PASS** | PASS | PASS | PASS | PASS | PASS | 0.482s | Clean |
-| AUTH-005 | Web Auth & Identity | **PASS** | PASS | PASS | PASS | PASS | PASS | 0.975s | Clean |
-| AUTH-006 | Web Auth & Identity | **PASS** | PASS | PASS | PASS | PASS | PASS | 1.44s | Clean |
-| AUTH-007 | Web Auth & Identity | **PASS** | PASS | PASS | PASS | PASS | PASS | 2.351s | Clean |
-| BB-001 | Blackboard Sync | **PASS** | PASS | PASS | PASS | PASS | PASS | 0.964s | Clean |
-| BB-002 | Blackboard Sync | **PASS** | PASS | PASS | PASS | PASS | PASS | 0.99s | Clean |
-| BB-003 | Blackboard Sync | **PASS** | PASS | PASS | PASS | PASS | PASS | 0.481s | Clean |
-| BB-004 | Blackboard Attachments | **PASS** | PASS | PASS | PASS | PASS | PASS | 0.96s | Clean |
+| AUTH-005 | Web Auth & Identity | **PASS** | PASS | PASS | PASS | PASS | PASS | 0.952s | Clean |
+| AUTH-006 | Web Auth & Identity | **PASS** | PASS | PASS | PASS | PASS | PASS | 1.546s | Clean |
+| AUTH-007 | Web Auth & Identity | **PASS** | PASS | PASS | PASS | PASS | PASS | 2.358s | Clean |
+| BB-001 | Blackboard Sync | **PASS** | PASS | PASS | PASS | PASS | PASS | 1.072s | Clean |
+| BB-002 | Blackboard Sync | **PASS** | PASS | PASS | PASS | PASS | PASS | 0.996s | Clean |
+| BB-003 | Blackboard Sync | **PASS** | PASS | PASS | PASS | PASS | PASS | 0.483s | Clean |
+| BB-004 | Blackboard Attachments | **PASS** | PASS | PASS | PASS | PASS | PASS | 0.962s | Clean |
 | BOT-001 | Telegram Bot | **PASS** | PASS | PASS | PASS | PASS | PASS | 0.009s | Clean |
 | BOT-002 | Telegram Bot | **PASS** | PASS | PASS | PASS | PASS | PASS | 0.008s | Clean |
 | BOT-003 | Telegram Bot | **PASS** | PASS | PASS | PASS | PASS | PASS | 0.008s | Clean |
 | BOT-004 | Telegram Bot | **PASS** | PASS | PASS | PASS | PASS | PASS | 0.008s | Clean |
 | BOT-005 | Telegram Bot | **PASS** | PASS | PASS | PASS | PASS | PASS | 0.008s | Clean |
-| BOT-006 | Telegram Bot | **PASS** | PASS | PASS | PASS | PASS | PASS | 0.39s | Clean |
-| DASH-001 | Home / Today | **PASS** | PASS | PASS | PASS | PASS | PASS | 1.524s | Clean |
-| DASH-002 | Home / Today | **PASS** | PASS | PASS | PASS | PASS | PASS | 1.468s | Clean |
-| DASH-003 | Home / Today | **PASS** | PASS | PASS | PASS | PASS | PASS | 0.961s | Clean |
-| DASH-004 | Home / Today | **PASS** | PASS | PASS | PASS | PASS | PASS | 0.947s | Clean |
+| BOT-006 | Telegram Bot | **PASS** | PASS | PASS | PASS | PASS | PASS | 0.419s | Clean |
+| DASH-001 | Home / Today | **PASS** | PASS | PASS | PASS | PASS | PASS | 1.494s | Clean |
+| DASH-002 | Home / Today | **PASS** | PASS | PASS | PASS | PASS | PASS | 1.458s | Clean |
+| DASH-003 | Home / Today | **PASS** | PASS | PASS | PASS | PASS | PASS | 0.974s | Clean |
+| DASH-004 | Home / Today | **PASS** | PASS | PASS | PASS | PASS | PASS | 0.954s | Clean |
 | DB-001 | Database Integrity | **PASS** | PASS | PASS | PASS | PASS | PASS | 0.0s | Clean |
 | DB-002 | Database Integrity | **PASS** | PASS | PASS | PASS | PASS | PASS | 0.0s | Clean |
-| DB-003 | Database Integrity | **PASS** | PASS | PASS | PASS | PASS | PASS | 0.01s | Clean |
-| FILE-001 | File Downloads & Security | **PASS** | PASS | PASS | PASS | PASS | PASS | 1.949s | Clean |
-| FILE-002 | File Downloads & Security | **PASS** | PASS | PASS | PASS | PASS | PASS | 0.969s | Clean |
-| FILE-003 | File Downloads & Security | **PASS** | PASS | PASS | PASS | PASS | PASS | 2.45s | Clean |
-| FILE-004 | File Downloads & Security | **PASS** | PASS | PASS | PASS | PASS | PASS | 1.465s | Clean |
-| FRSH-001 | Data Freshness | **PASS** | PASS | PASS | PASS | PASS | PASS | 0.985s | Clean |
-| FRSH-002 | Data Freshness | **PASS** | PASS | PASS | PASS | PASS | PASS | 0.972s | Clean |
-| FRSH-003 | Data Freshness | **PASS** | PASS | PASS | PASS | PASS | PASS | 0.985s | Clean |
-| FRSH-004 | Data Freshness | **PASS** | PASS | PASS | PASS | PASS | PASS | 0.974s | Clean |
-| FRSH-005 | Data Freshness | **PASS** | PASS | PASS | PASS | PASS | PASS | 0.944s | Clean |
-| ISOL-001 | Multi-User Isolation | **PASS** | PASS | PASS | PASS | PASS | PASS | 0.98s | Clean |
-| ISOL-002 | Multi-User Isolation | **PASS** | PASS | PASS | PASS | PASS | PASS | 1.453s | Clean |
-| ISOL-003 | Multi-User Isolation | **PASS** | PASS | PASS | PASS | PASS | PASS | 0.969s | Clean |
-| NAV-001 | Navigation & Routing | **PASS** | PASS | PASS | PASS | PASS | PASS | 2.863s | Clean |
-| NAV-002 | Navigation & Routing | **PASS** | PASS | PASS | PASS | PASS | PASS | 2.961s | Clean |
-| NAV-003 | Navigation & Routing | **PASS** | PASS | PASS | PASS | PASS | PASS | 2.953s | Clean |
-| NAV-004 | Navigation & Routing | **PASS** | PASS | PASS | PASS | PASS | PASS | 2.885s | Clean |
-| NAV-005 | Navigation & Routing | **PASS** | PASS | PASS | PASS | PASS | PASS | 2.915s | Clean |
-| PWA-001 | PWA & Service Worker | **PASS** | PASS | PASS | PASS | PASS | PASS | 0.499s | Clean |
-| PWA-002 | PWA & Service Worker | **PASS** | PASS | PASS | PASS | PASS | PASS | 1.488s | Clean |
-| PWA-003 | PWA & Service Worker | **PASS** | PASS | PASS | PASS | PASS | PASS | 1.504s | Clean |
-| PWA-004 | Offline Mode | **PASS** | PASS | PASS | PASS | PASS | PASS | 1.445s | Clean |
-| PWA-005 | PWA & Service Worker | **PASS** | PASS | PASS | PASS | PASS | PASS | 1.53s | Clean |
-| RESP-001 | Responsive (6 Viewports) | **PASS** | PASS | PASS | PASS | PASS | PASS | 1.755s | Clean |
-| RESP-002 | Responsive (6 Viewports) | **PASS** | PASS | PASS | PASS | PASS | PASS | 1.492s | Clean |
-| RESP-003 | Responsive (6 Viewports) | **PASS** | PASS | PASS | PASS | PASS | PASS | 1.478s | Clean |
-| RESP-004 | Responsive (6 Viewports) | **PASS** | PASS | PASS | PASS | PASS | PASS | 1.426s | Clean |
-| RESP-005 | Responsive (6 Viewports) | **PASS** | PASS | PASS | PASS | PASS | PASS | 1.416s | Clean |
-| RESP-006 | Responsive (6 Viewports) | **PASS** | PASS | PASS | PASS | PASS | PASS | 1.403s | Clean |
+| DB-003 | Database Integrity | **PASS** | PASS | PASS | PASS | PASS | PASS | 0.03s | Clean |
+| FILE-001 | File Downloads & Security | **PASS** | PASS | PASS | PASS | PASS | PASS | 1.969s | Clean |
+| FILE-002 | File Downloads & Security | **PASS** | PASS | PASS | PASS | PASS | PASS | 0.976s | Clean |
+| FILE-003 | File Downloads & Security | **PASS** | PASS | PASS | PASS | PASS | PASS | 2.454s | Clean |
+| FILE-004 | File Downloads & Security | **PASS** | PASS | PASS | PASS | PASS | PASS | 1.499s | Clean |
+| FRSH-001 | Data Freshness | **PASS** | PASS | PASS | PASS | PASS | PASS | 0.983s | Clean |
+| FRSH-002 | Data Freshness | **PASS** | PASS | PASS | PASS | PASS | PASS | 0.993s | Clean |
+| FRSH-003 | Data Freshness | **PASS** | PASS | PASS | PASS | PASS | PASS | 0.98s | Clean |
+| FRSH-004 | Data Freshness | **PASS** | PASS | PASS | PASS | PASS | PASS | 1.027s | Clean |
+| FRSH-005 | Data Freshness | **PASS** | PASS | PASS | PASS | PASS | PASS | 0.955s | Clean |
+| ISOL-001 | Multi-User Isolation | **PASS** | PASS | PASS | PASS | PASS | PASS | 0.99s | Clean |
+| ISOL-002 | Multi-User Isolation | **PASS** | PASS | PASS | PASS | PASS | PASS | 1.481s | Clean |
+| ISOL-003 | Multi-User Isolation | **PASS** | PASS | PASS | PASS | PASS | PASS | 0.98s | Clean |
+| NAV-001 | Navigation & Routing | **PASS** | PASS | PASS | PASS | PASS | PASS | 3.017s | Clean |
+| NAV-002 | Navigation & Routing | **PASS** | PASS | PASS | PASS | PASS | PASS | 3.024s | Clean |
+| NAV-003 | Navigation & Routing | **PASS** | PASS | PASS | PASS | PASS | PASS | 3.052s | Clean |
+| NAV-004 | Navigation & Routing | **PASS** | PASS | PASS | PASS | PASS | PASS | 2.912s | Clean |
+| NAV-005 | Navigation & Routing | **PASS** | PASS | PASS | PASS | PASS | PASS | 2.947s | Clean |
+| PWA-001 | PWA & Service Worker | **PASS** | PASS | PASS | PASS | PASS | PASS | 0.482s | Clean |
+| PWA-002 | PWA & Service Worker | **PASS** | PASS | PASS | PASS | PASS | PASS | 1.441s | Clean |
+| PWA-003 | PWA & Service Worker | **PASS** | PASS | PASS | PASS | PASS | PASS | 1.451s | Clean |
+| PWA-004 | Offline Mode | **PASS** | PASS | PASS | PASS | PASS | PASS | 1.502s | Clean |
+| PWA-005 | PWA & Service Worker | **PASS** | PASS | PASS | PASS | PASS | PASS | 1.547s | Clean |
+| RESP-001 | Responsive (6 Viewports) | **PASS** | PASS | PASS | PASS | PASS | PASS | 1.656s | Clean |
+| RESP-002 | Responsive (6 Viewports) | **PASS** | PASS | PASS | PASS | PASS | PASS | 1.523s | Clean |
+| RESP-003 | Responsive (6 Viewports) | **PASS** | PASS | PASS | PASS | PASS | PASS | 1.497s | Clean |
+| RESP-004 | Responsive (6 Viewports) | **PASS** | PASS | PASS | PASS | PASS | PASS | 1.46s | Clean |
+| RESP-005 | Responsive (6 Viewports) | **PASS** | PASS | PASS | PASS | PASS | PASS | 1.441s | Clean |
+| RESP-006 | Responsive (6 Viewports) | **PASS** | PASS | PASS | PASS | PASS | PASS | 1.366s | Clean |
 | SCHD-001 | Scheduler & Jobs | **PASS** | PASS | PASS | PASS | PASS | PASS | 0.0s | Clean |
 | SCHD-002 | Scheduler & Jobs | **PASS** | PASS | PASS | PASS | PASS | PASS | 0.0s | Clean |
 | SCHD-003 | Scheduler & Jobs | **PASS** | PASS | PASS | PASS | PASS | PASS | 0.0s | Clean |
-| SCHED-001 | Schedule View | **PASS** | PASS | PASS | PASS | PASS | PASS | 0.487s | Clean |
-| SCHED-002 | Schedule View | **PASS** | PASS | PASS | PASS | PASS | PASS | 0.493s | Clean |
-| SCHED-003 | Schedule View | **PASS** | PASS | PASS | PASS | PASS | PASS | 1.706s | Clean |
-| SCHED-004 | Schedule View | **PASS** | PASS | PASS | PASS | PASS | PASS | 0.486s | Clean |
-| SCHED-005 | Subject Linking | **PASS** | PASS | PASS | PASS | PASS | PASS | 0.91s | Clean |
-| TASK-001 | Tasks Matrix & Filters | **PASS** | PASS | PASS | PASS | PASS | PASS | 1.979s | Clean |
-| TASK-002 | Tasks Matrix & Filters | **PASS** | PASS | PASS | PASS | PASS | PASS | 2.863s | Clean |
-| TASK-003 | Tasks Matrix & Filters | **PASS** | PASS | PASS | PASS | PASS | PASS | 2.958s | Clean |
-| TASK-004 | Tasks Matrix & Filters | **PASS** | PASS | PASS | PASS | PASS | PASS | 2.953s | Clean |
-| TASK-005 | Tasks Matrix & Filters | **PASS** | PASS | PASS | PASS | PASS | PASS | 2.166s | Clean |
-| TASK-006 | Tasks Matrix & Filters | **PASS** | PASS | PASS | PASS | PASS | PASS | 2.888s | Clean |
-| TASK-007 | Tasks Matrix & Filters | **PASS** | PASS | PASS | PASS | PASS | PASS | 2.197s | Clean |
-| TASK-008 | Search & Filter | **PASS** | PASS | PASS | PASS | PASS | PASS | 2.564s | Clean |
-| TASK-009 | Search & Filter | **PASS** | PASS | PASS | PASS | PASS | PASS | 2.557s | Clean |
-| TASK-010 | Task Toggle & Progress | **PASS** | PASS | PASS | PASS | PASS | PASS | 5.826s | Clean |
-| TASK-011 | Task Toggle & Progress | **PASS** | PASS | PASS | PASS | PASS | PASS | 5.782s | Clean |
-| TASK-012 | Task Detail Sheet | **PASS** | PASS | PASS | PASS | PASS | PASS | 2.508s | Clean |
-| TASK-013 | Task Detail Sheet | **PASS** | PASS | PASS | PASS | PASS | PASS | 2.537s | Clean |
-| UI-001 | Theme Toggle | **PASS** | PASS | PASS | PASS | PASS | PASS | 2.177s | Clean |
-| UI-002 | Theme Toggle | **PASS** | PASS | PASS | PASS | PASS | PASS | 2.023s | Clean |
-| UI-003 | Theme Toggle | **PASS** | PASS | PASS | PASS | PASS | PASS | 2.011s | Clean |
+| SCHED-001 | Schedule View | **PASS** | PASS | PASS | PASS | PASS | PASS | 0.497s | Clean |
+| SCHED-002 | Schedule View | **PASS** | PASS | PASS | PASS | PASS | PASS | 0.499s | Clean |
+| SCHED-003 | Schedule View | **PASS** | PASS | PASS | PASS | PASS | PASS | 1.855s | Clean |
+| SCHED-004 | Schedule View | **PASS** | PASS | PASS | PASS | PASS | PASS | 0.527s | Clean |
+| SCHED-005 | Subject Linking | **PASS** | PASS | PASS | PASS | PASS | PASS | 0.983s | Clean |
+| TASK-001 | Tasks Matrix & Filters | **PASS** | PASS | PASS | PASS | PASS | PASS | 1.984s | Clean |
+| TASK-002 | Tasks Matrix & Filters | **PASS** | PASS | PASS | PASS | PASS | PASS | 2.866s | Clean |
+| TASK-003 | Tasks Matrix & Filters | **PASS** | PASS | PASS | PASS | PASS | PASS | 2.896s | Clean |
+| TASK-004 | Tasks Matrix & Filters | **PASS** | PASS | PASS | PASS | PASS | PASS | 2.785s | Clean |
+| TASK-005 | Tasks Matrix & Filters | **PASS** | PASS | PASS | PASS | PASS | PASS | 2.297s | Clean |
+| TASK-006 | Tasks Matrix & Filters | **PASS** | PASS | PASS | PASS | PASS | PASS | 2.892s | Clean |
+| TASK-007 | Tasks Matrix & Filters | **PASS** | PASS | PASS | PASS | PASS | PASS | 2.046s | Clean |
+| TASK-008 | Search & Filter | **PASS** | PASS | PASS | PASS | PASS | PASS | 2.491s | Clean |
+| TASK-009 | Search & Filter | **PASS** | PASS | PASS | PASS | PASS | PASS | 2.489s | Clean |
+| TASK-010 | Task Toggle & Progress | **PASS** | PASS | PASS | PASS | PASS | PASS | 5.822s | Clean |
+| TASK-011 | Task Toggle & Progress | **PASS** | PASS | PASS | PASS | PASS | PASS | 5.761s | Clean |
+| TASK-012 | Task Detail Sheet | **PASS** | PASS | PASS | PASS | PASS | PASS | 2.447s | Clean |
+| TASK-013 | Task Detail Sheet | **PASS** | PASS | PASS | PASS | PASS | PASS | 2.418s | Clean |
+| UI-001 | Theme Toggle | **PASS** | PASS | PASS | PASS | PASS | PASS | 1.939s | Clean |
+| UI-002 | Theme Toggle | **PASS** | PASS | PASS | PASS | PASS | PASS | 2.041s | Clean |
+| UI-003 | Theme Toggle | **PASS** | PASS | PASS | PASS | PASS | PASS | 2.082s | Clean |
 
 ## Diagnostic Telemetry & Evidence
 - Artifacts, network captures, and console logs are saved per-test in `artifacts/qa/{test_id}/console.log`.

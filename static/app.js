@@ -7,24 +7,31 @@ const API_BASE = '';
 const AUTH_TOKEN_KEY = 'kai_app_auth_token';
 
 function getAuthToken() {
-  const token = localStorage.getItem(AUTH_TOKEN_KEY);
-  if (token) return token;
-  const match = document.cookie.match(/(?:^|;\s*)kai_app_auth_token=([^;]+)/);
-  return match ? decodeURIComponent(match[1]) : '';
+  if (typeof state !== 'undefined' && state.userToken) return state.userToken;
+  return '';
 }
 
 function setAuthToken(token) {
-  if (token) {
-    const clean = token.trim();
-    localStorage.setItem(AUTH_TOKEN_KEY, clean);
-    document.cookie = `kai_app_auth_token=${encodeURIComponent(clean)}; path=/; SameSite=Strict; max-age=31536000`;
+  if (typeof state !== 'undefined') {
+    state.userToken = token ? token.trim() : null;
   }
+  // Hardened: Do NOT store sensitive auth token in localStorage (XSS prevention)
+  localStorage.removeItem(AUTH_TOKEN_KEY);
 }
 
 function getCurrentUserKey() {
+  if (typeof state !== 'undefined' && state.currentUser && state.currentUser.id) {
+    return `user_${state.currentUser.id}`;
+  }
+  try {
+    const cached = localStorage.getItem('kai_user_profile');
+    if (cached) {
+      const u = JSON.parse(cached);
+      if (u && u.id) return `user_${u.id}`;
+    }
+  } catch (_) {}
   const token = getAuthToken();
-  if (!token) return 'anonymous';
-  if (token.includes('.')) {
+  if (token && token.includes('.')) {
     try {
       const parts = token.split('.');
       if (parts.length === 3) {
@@ -33,7 +40,7 @@ function getCurrentUserKey() {
       }
     } catch (_) {}
   }
-  return 'token_' + encodeURIComponent(token.slice(0, 32));
+  return 'user_default';
 }
 
 const IDB_NAME = 'kai_offline_store';
@@ -101,8 +108,17 @@ function getAiHistoryKey() {
 }
 
 function clearAuthToken() {
+  if (typeof state !== 'undefined') {
+    state.userToken = null;
+    state.currentUser = null;
+  }
   localStorage.removeItem(AUTH_TOKEN_KEY);
-  document.cookie = 'kai_app_auth_token=; path=/; max-age=0; SameSite=Strict';
+  localStorage.removeItem('kai_user_profile');
+  try {
+    fetch('/api/auth/logout', { method: 'POST', credentials: 'same-origin' }).catch(() => {});
+  } catch (_) {}
+  document.cookie = 'kai_app_auth_token=; path=/; max-age=0; SameSite=Lax';
+  document.cookie = 'kai_session_active=; path=/; max-age=0; SameSite=Lax';
   if (typeof state !== 'undefined') {
     state.tasks = [];
     state.subjects = [];
@@ -136,10 +152,10 @@ async function apiFetch(url, options = {}) {
   const headers = new Headers(options.headers || {});
   if (token) {
     headers.set('Authorization', `Bearer ${token}`);
-    headers.set('X-App-Token', token);
   }
+  // X-App-Token is strictly internal/service auth, never attached to client requests
 
-  const response = await fetch(url, { ...options, headers });
+  const response = await fetch(url, { ...options, credentials: 'same-origin', headers });
   if (response.status === 401) {
     clearAuthToken();
     showAuthModal(true);
@@ -195,6 +211,8 @@ async function downloadTaskFile(taskId, attachmentId = null, fallbackName = 'fil
 window.downloadTaskFile = downloadTaskFile;
 
 const state = {
+  userToken: null,
+  currentUser: null,
   currentTab: 'focus',          // 'focus' | 'tasks' | 'ai' | 'more'
   currentSegment: 'submissions', // 'submissions' | 'materials'
   scheduleDay: getInitialWeekday(), // 1..6
@@ -304,11 +322,11 @@ function setupAuthModalEvents() {
       if (errorMsg) errorMsg.style.display = 'none';
 
       try {
-        const res = await fetch('/api/stats', {
-          headers: {
-            'Authorization': `Bearer ${val}`,
-            'X-App-Token': val
-          }
+        const res = await fetch('/api/auth/login', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'same-origin',
+          body: JSON.stringify({ token: val, passcode: val })
         });
 
         if (res.status === 401) {
@@ -323,35 +341,17 @@ function setupAuthModalEvents() {
           throw new Error('Ошибка сервера: ' + res.status);
         }
 
-        let authTokenToStore = val;
-        // If not a signed user token (not 3 parts), exchange app gateway token for signed student token
-        if (val.split('.').length !== 3) {
-          try {
-            const tokenRes = await fetch('/api/auth/token', {
-              method: 'POST',
-              headers: {
-                'Content-Type': 'application/json',
-                'Authorization': `Bearer ${val}`,
-                'X-App-Token': val,
-              },
-              body: JSON.stringify({
-                user_id: 'student_5108',
-                username: 'student_5108',
-                role: 'student',
-                group_num: '5108',
-                subgroup: 2
-              })
-            });
-            if (tokenRes.ok) {
-              const tokenData = await tokenRes.json();
-              if (tokenData.access_token) {
-                authTokenToStore = tokenData.access_token;
-              }
-            }
-          } catch (_) {}
+        const authData = await res.json();
+        if (authData.user) {
+          state.currentUser = authData.user;
+          localStorage.setItem('kai_user_profile', JSON.stringify(authData.user));
         }
+        if (val.split('.').length === 3) {
+          state.userToken = val;
+        }
+        // XSS hardening: strictly remove sensitive token from localStorage
+        localStorage.removeItem(AUTH_TOKEN_KEY);
 
-        setAuthToken(authTokenToStore);
         hideAuthModal();
         showToast('Успешный вход в систему');
         await initAppData();
@@ -389,7 +389,7 @@ function setupAuthModalEvents() {
 // -------------------------------------------------------------
 // App Initialization
 // -------------------------------------------------------------
-document.addEventListener('DOMContentLoaded', () => {
+document.addEventListener('DOMContentLoaded', async () => {
   setupThemeToggle();
   setupNavigation();
   setupSegmentControl();
@@ -403,11 +403,51 @@ document.addEventListener('DOMContentLoaded', () => {
   setupTaskDetailSheet();
   setupKeyboardAvoidance();
 
-  const token = getAuthToken();
-  if (!token) {
+  // Legacy localStorage migration to HttpOnly cookie session
+  const legacyToken = localStorage.getItem(AUTH_TOKEN_KEY);
+  if (legacyToken) {
+    try {
+      const migRes = await fetch('/api/auth/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'same-origin',
+        body: JSON.stringify({ token: legacyToken, passcode: legacyToken })
+      });
+      if (migRes.ok) {
+        const migData = await migRes.json();
+        if (migData.user) {
+          state.currentUser = migData.user;
+          localStorage.setItem('kai_user_profile', JSON.stringify(migData.user));
+        }
+        if (legacyToken.split('.').length === 3) {
+          state.userToken = legacyToken;
+        }
+        localStorage.removeItem(AUTH_TOKEN_KEY);
+      }
+    } catch (_) {}
+  }
+
+  const hasSessionCookie = document.cookie.includes('kai_session_active=1') || document.cookie.includes('kai_app_auth_token');
+  const cachedProfile = localStorage.getItem('kai_user_profile');
+  if (!hasSessionCookie && !cachedProfile && !legacyToken && !state.userToken) {
     showAuthModal(false);
   } else {
-    initAppData();
+    // Session verification: Check if active HttpOnly cookie session is valid
+    try {
+      const meRes = await fetch('/api/auth/me', { credentials: 'same-origin' });
+      if (meRes.ok) {
+        const userProfile = await meRes.json();
+        state.currentUser = userProfile;
+        localStorage.setItem('kai_user_profile', JSON.stringify(userProfile));
+        hideAuthModal();
+        await initAppData();
+      } else {
+        localStorage.removeItem('kai_user_profile');
+        showAuthModal(false);
+      }
+    } catch (e) {
+      showAuthModal(false);
+    }
   }
 
   setInterval(updateLiveLessonStatus, 30000);

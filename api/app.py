@@ -34,6 +34,7 @@ from pydantic import BaseModel
 
 from core.config import settings
 from core.subjects import resolve_canonical_subject
+from core.version import get_version_payload
 from database.connection import async_session, init_db
 from database.crud import (
     create_task,
@@ -145,6 +146,61 @@ def record_successful_sync(source: str = "schedule") -> str:
 security_bearer = HTTPBearer(auto_error=False)
 
 
+def is_request_secure(request: Request) -> bool:
+    """Determine whether the request is over a secure HTTPS channel or production deployment."""
+    if request.url.scheme == "https":
+        return True
+    if request.headers.get("x-forwarded-proto", "").lower() == "https":
+        return True
+    env_str = os.environ.get("ENVIRONMENT", getattr(settings, "environment", "")).lower()
+    if env_str in ("production", "prod"):
+        return True
+    return False
+
+
+def set_auth_session_cookie(response: Response, token: str, request: Request) -> None:
+    """Set HttpOnly, SameSite=Lax, Secure (on HTTPS/prod) session cookie."""
+    secure_flag = is_request_secure(request)
+    response.set_cookie(
+        key="kai_app_auth_token",
+        value=token,
+        max_age=30 * 86400,  # 30 days
+        httponly=True,
+        secure=secure_flag,
+        samesite="lax",
+        path="/",
+    )
+    # Non-sensitive flag to allow client JS to detect active session presence without exposing the secret token
+    response.set_cookie(
+        key="kai_session_active",
+        value="1",
+        max_age=30 * 86400,
+        httponly=False,
+        secure=secure_flag,
+        samesite="lax",
+        path="/",
+    )
+
+
+def clear_auth_session_cookie(response: Response, request: Request) -> None:
+    """Clear HttpOnly session cookie."""
+    secure_flag = is_request_secure(request)
+    response.delete_cookie(
+        key="kai_app_auth_token",
+        path="/",
+        httponly=True,
+        secure=secure_flag,
+        samesite="lax",
+    )
+    response.delete_cookie(
+        key="kai_session_active",
+        path="/",
+        httponly=False,
+        secure=secure_flag,
+        samesite="lax",
+    )
+
+
 async def verify_app_token(
     request: Request,
     auth: Optional[HTTPAuthorizationCredentials] = Security(security_bearer),
@@ -166,12 +222,16 @@ async def verify_app_token(
        - If Authorization header, X-User-Token, or cookie contains a user token,
          cryptographically verify signature, claims, and expiration via decode_user_token.
        - Sets request.state.current_user to verified AuthenticatedUser.
-    4. App Gateway Token (X-App-Token or Bearer matching settings.app_auth_token):
+       - If authenticated via cookie, sets auth_type="session_cookie", otherwise "user_token".
+    4. Service Auth (X-App-Token strictly for internal services: crawler, bot, scheduler):
+       - Sets auth_type="service_auth".
+       - Does NOT permit client-controlled X-User-Id impersonation.
+    5. App Gateway Token (Bearer matching settings.app_auth_token or gateway session cookie):
        - Validates client authorization to the API gateway.
        - If an additional user token is supplied, binds that user.
-       - If X-User-Id is provided under trusted gateway auth, constructs AuthenticatedUser(id=X-User-Id).
+       - If X-User-Id is provided under trusted gateway auth, only system default user is accepted.
        - Otherwise defaults to system default student user (student_5108).
-    5. Tokens passed in query parameters (?token=...) are strictly rejected.
+    6. Tokens passed in query parameters (?token=...) are strictly rejected.
     """
     expected = settings.app_auth_token
 
@@ -218,7 +278,8 @@ async def verify_app_token(
                 detail="Попытка подмены идентификатора пользователя (Impersonation forbidden)",
             )
         request.state.current_user = verified_user
-        request.state.auth_type = "user_token"
+        is_from_cookie = (primary_token == cookie_app_token or primary_token == cookie_user_token)
+        request.state.auth_type = "session_cookie" if is_from_cookie else "user_token"
         return True
 
     # 5. Check if secondary user token is present (e.g. Bearer was app_token, but header_user_token or cookie has JWT)
@@ -227,16 +288,47 @@ async def verify_app_token(
     if secondary_user_token and secondary_user_token.count(".") == 2:
         verified_user_from_secondary = decode_user_token(secondary_user_token)
 
-    # 6. Validate against App Gateway Token
+    # 6. Service Auth: X-App-Token is strictly for internal components (bot, scraper, scheduler)
+    if header_app_token:
+        is_service_valid = False
+        if expected:
+            if secrets.compare_digest(header_app_token, expected):
+                is_service_valid = True
+        else:
+            is_service_valid = True
+
+        if not is_service_valid:
+            raise HTTPException(
+                status_code=401,
+                detail="Неавторизованный доступ: неверный сервисный токен",
+                headers={"WWW-Authenticate": "Bearer"},
+            )
+
+        # Service auth must not be abused for student impersonation
+        if x_user_id and x_user_id.strip():
+            client_uid = x_user_id.strip()
+            default_user = get_system_default_user()
+            if client_uid != default_user.id:
+                raise HTTPException(
+                    status_code=403,
+                    detail="Доступ запрещен: для идентификации пользователя требуется подписанный токен пользователя",
+                )
+            request.state.current_user = default_user
+        else:
+            request.state.current_user = get_system_default_user()
+
+        request.state.auth_type = "service_auth"
+        return True
+
+    # 7. Validate Gateway Token (Bearer or Cookie)
     is_app_token_valid = False
     if expected:
-        candidates = [t for t in (bearer_token, header_app_token, cookie_app_token) if t]
+        candidates = [t for t in (bearer_token, cookie_app_token) if t]
         for cand in candidates:
             if secrets.compare_digest(cand, expected):
                 is_app_token_valid = True
                 break
     else:
-        # If no expected app_token configured, gateway auth passes
         is_app_token_valid = True
 
     if not is_app_token_valid:
@@ -246,7 +338,7 @@ async def verify_app_token(
             headers={"WWW-Authenticate": "Bearer"},
         )
 
-    # 7. Gateway auth succeeded: resolve user identity
+    # 8. Gateway auth succeeded: resolve user identity
     if verified_user_from_secondary:
         if x_user_id and x_user_id.strip() and x_user_id.strip() != verified_user_from_secondary.id:
             raise HTTPException(
@@ -257,11 +349,12 @@ async def verify_app_token(
         request.state.auth_type = "user_token"
     else:
         # Gateway authentication without signed user token:
-        # Do NOT trust client-controlled X-User-Id to impersonate arbitrary users!
-        if x_user_id and x_user_id.strip():
+        if cookie_app_token:
+            request.state.current_user = get_system_default_user()
+            request.state.auth_type = "session_cookie"
+        elif x_user_id and x_user_id.strip():
             client_uid = x_user_id.strip()
             default_user = get_system_default_user()
-            # In single-user dev mode, only the default development identity is permitted
             if client_uid != default_user.id:
                 raise HTTPException(
                     status_code=403,
@@ -270,7 +363,6 @@ async def verify_app_token(
             request.state.current_user = default_user
             request.state.auth_type = "gateway_dev"
         else:
-            # Default system student (backward compatibility for single-user dev mode)
             request.state.current_user = get_system_default_user()
             request.state.auth_type = "gateway_default"
 
@@ -294,6 +386,12 @@ api_router = APIRouter(prefix="/api", dependencies=[Depends(verify_app_token)])
 async def health_check():
     """Public health check endpoint."""
     return {"status": "ok", "app": "KAI Assistant 5108"}
+
+
+@app.get("/api/version")
+async def get_version():
+    """Build, commit, and authentication metadata for deployment verification."""
+    return get_version_payload()
 
 STATIC_DIR = Path(__file__).resolve().parent.parent / "static"
 REAL_KAPIPARA_FILE = Path(__file__).resolve().parent.parent / "data" / "real_kapipara_5108.json"
@@ -428,6 +526,95 @@ async def startup_event():
 # REST API ENDPOINTS
 # -------------------------------------------------------------
 
+class LoginRequest(BaseModel):
+    token: Optional[str] = None
+    passcode: Optional[str] = None
+    user_id: Optional[str] = None
+    username: Optional[str] = None
+
+
+@app.post("/api/auth/login")
+async def login_user(req: LoginRequest, request: Request, response: Response):
+    """
+    Public login endpoint for web frontend.
+    Accepts signed user JWT or application passcode, verifies credentials,
+    and sets HttpOnly Secure SameSite=Lax session cookie.
+    Does NOT require client-side localStorage token persistence.
+    """
+    candidate = (req.token or req.passcode or "").strip()
+    if not candidate:
+        raise HTTPException(status_code=400, detail="Отсутствует токен или ключ доступа")
+
+    expected_app_token = settings.app_auth_token
+
+    # Case A: Signed JWT User Token
+    if candidate.count(".") == 2:
+        try:
+            verified_user = decode_user_token(candidate)
+            set_auth_session_cookie(response, candidate, request)
+            return {
+                "status": "ok",
+                "auth_type": "session_cookie",
+                "user": {
+                    "id": verified_user.id,
+                    "username": verified_user.username,
+                    "role": verified_user.role,
+                    "group_num": verified_user.group_num,
+                    "subgroup": verified_user.subgroup,
+                },
+            }
+        except HTTPException:
+            raise
+        except Exception:
+            raise HTTPException(status_code=401, detail="Неверный или поврежденный токен")
+
+    # Case B: Application passcode match -> mint session token for student
+    if expected_app_token and secrets.compare_digest(candidate, expected_app_token):
+        uid = (req.user_id or "student_5108").strip()
+        uname = (req.username or uid).strip()
+        async with async_session() as session:
+            user_record = await get_or_create_user(
+                session=session,
+                user_id=uid,
+                username=uname,
+                role="student",
+                group_num="5108",
+                subgroup=2,
+            )
+        user_jwt = create_user_token(
+            user_id=user_record.id,
+            username=user_record.username,
+            role=user_record.role,
+            group_num=user_record.group_num,
+            subgroup=user_record.subgroup,
+        )
+        set_auth_session_cookie(response, user_jwt, request)
+        return {
+            "status": "ok",
+            "auth_type": "session_cookie",
+            "user": {
+                "id": user_record.id,
+                "username": user_record.username,
+                "role": user_record.role,
+                "group_num": user_record.group_num,
+                "subgroup": user_record.subgroup,
+            },
+        }
+
+    # Case C: Invalid credentials
+    raise HTTPException(status_code=401, detail="Неверный ключ доступа. Попробуйте еще раз.")
+
+
+@app.post("/api/auth/logout")
+@api_router.post("/auth/logout")
+async def logout_user(request: Request, response: Response):
+    """
+    Clear session cookie and invalidate active browser session.
+    """
+    clear_auth_session_cookie(response, request)
+    return {"status": "ok", "message": "Сессия успешно завершена"}
+
+
 class IssueTokenRequest(BaseModel):
     user_id: str
     username: Optional[str] = None
@@ -437,10 +624,11 @@ class IssueTokenRequest(BaseModel):
 
 
 @api_router.post("/auth/token")
-async def issue_auth_token(req: IssueTokenRequest):
+async def issue_auth_token(req: IssueTokenRequest, request: Request, response: Response):
     """
     Issue a cryptographically signed user token for a given student/user.
     Establishes true user identity for scoped data isolation.
+    Sets HttpOnly Secure SameSite session cookie.
     """
     if not req.user_id or not req.user_id.strip():
         raise HTTPException(status_code=400, detail="Идентификатор пользователя не может быть пустым")
@@ -466,6 +654,8 @@ async def issue_auth_token(req: IssueTokenRequest):
         group_num=req.group_num,
         subgroup=req.subgroup,
     )
+
+    set_auth_session_cookie(response, token, request)
 
     return {
         "access_token": token,
@@ -2168,10 +2358,22 @@ NO_CACHE_HEADERS = {
 
 @app.get("/")
 @app.head("/")
-async def serve_index():
+async def serve_index(request: Request):
     index_file = STATIC_DIR / "index.html"
     if index_file.exists():
-        return FileResponse(str(index_file), headers=NO_CACHE_HEADERS)
+        response = FileResponse(str(index_file), headers=NO_CACHE_HEADERS)
+        session_cookie = request.cookies.get("kai_app_auth_token")
+        if session_cookie and not request.cookies.get("kai_session_active"):
+            response.set_cookie(
+                key="kai_session_active",
+                value="1",
+                max_age=30 * 86400,
+                httponly=False,
+                secure=is_request_secure(request),
+                samesite="lax",
+                path="/",
+            )
+        return response
     return JSONResponse({"message": "KAI Assistant API running. Static files not yet created."})
 
 

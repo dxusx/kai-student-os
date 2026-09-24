@@ -50,7 +50,7 @@
 - Автоматизированный headless-сбор данных через **Playwright** с сохранением сессионных cookie (`storage_state.json`).
 - **Глубокий рекурсивный обход DOM-дерева**: раскрывает папки, подразделы учебных материалов и вложенные контейнеры курсов.
 - **Строгая изоляция файлов**: каждый материал и лабораторная связываются исключительно со своим оригинальным файлом без утечки ссылок.
-- **Защищенное скачивание через бэкенд (`/api/tasks/{task_id}/download`)**: авторизация исключительно через заголовок `Authorization: Bearer <token>`, `X-App-Token` или сессионную cookie (`kai_app_auth_token`). Токены в URL (`?token=`) строго запрещены (401) для предотвращения утечки в access-логи; проверка прав владения задачей (403), сандбоксинг хранилища вложений (`data/attachments`) и надежная защита от Path Traversal (`../`, `..\`, `%2e%2e`).
+- **Защищенное скачивание через бэкенд (`/api/tasks/{task_id}/download`)**: авторизация исключительно через заголовок `Authorization: Bearer <user_token>` или HttpOnly сессионную cookie (`kai_app_auth_token`). Заголовок `X-App-Token` зарезервирован строго для доверенных бэкенд-сервисов (бот, краулер, планировщик). Токены в URL (`?token=`) строго запрещены (401) для предотвращения утечки в access-логи; проверка прав владения задачей (403), сандбоксинг хранилища вложений (`data/attachments`) и надежная защита от Path Traversal (`../`, `..\`, `%2e%2e`).
 - **Smart Split**: автоматическое разделение контента на **«Сдачу работ»** (лабораторные, практики, расчеты) и **«Библиотеку методичек»** (программы дисциплин, ФОС, лекции, вопросы к зачету).
 
 ### 4. 🤖 Капи AI на базе Gemini 3.5 Flash & Action Confirmation
@@ -99,7 +99,7 @@ flowchart TD
     end
 
     subgraph Frontend ["Интерфейсы пользователя"]
-        PWA["Mobile PWA Dashboard<br/>(Bento-Grid, Material You, Web Speech)"]
+        PWA["Mobile PWA Dashboard<br/>(Bento-Grid, Nothing OS / Linear Style, Web Speech)"]
         BOT["Telegram Bot (Aiogram 3)<br/>(Интерактивные клавиатуры, уведомления)"]
     end
 
@@ -159,7 +159,7 @@ kai_assistant/
 │   └── tunnel.py              # Менеджер безопасных HTTPS-туннелей (Cloudflare / SSH)
 ├── static/                    # Мобильный PWA клиент
 │   ├── index.html             # Разметка Bento-Dashboard, Google AI Studio, модалок и PWA
-│   ├── styles.css             # Дизайн-система Google Material You / Dark Theme
+│   ├── styles.css             # Дизайн-система Nothing OS / Linear Style (Zero-Lag Liquid Glass)
 │   ├── app.js                 # Клиентская логика, Web Speech API, офлайн-кэш
 │   ├── sw.js                  # Service Worker PWA (Network-first стратегия)
 │   └── manifest.json          # Манифест PWA приложения для Android / iOS
@@ -247,7 +247,7 @@ nano .env  # Укажите ваши боевые секреты (ENABLE_TUNNEL=
 ```
 
 ### 3. Настройка службы systemd
-Создайте юнит `/etc/systemd/system/kai-assistant.service`:
+Создайте юнит `/etc/systemd/system/kai_assistant.service`:
 ```ini
 [Unit]
 Description=KAI Student OS 2.0 Daemon
@@ -268,8 +268,8 @@ WantedBy=multi-user.target
 Активируйте и запустите службу:
 ```bash
 sudo systemctl daemon-reload
-sudo systemctl enable --now kai-assistant.service
-sudo systemctl status kai-assistant.service
+sudo systemctl enable --now kai_assistant.service
+sudo systemctl status kai_assistant.service
 ```
 
 ### 4. Настройка Nginx с SSL (HTTPS)
@@ -306,12 +306,13 @@ sudo certbot --nginx -d kai.yourdomain.com
 | Направление | Технологии |
 |---|---|
 | **Backend Framework** | [FastAPI](https://fastapi.tiangolo.com/), [Uvicorn](https://www.uvicorn.org/), ASGI |
+| **Security & Auth** | HttpOnly Secure SameSite Session Cookies, Scoped Service Auth (`X-App-Token`), Git Commit Verification (`GET /api/version`) |
 | **Telegram Bot** | [Aiogram 3.x](https://docs.aiogram.dev/), Telegram Bot API, Async Event Driven |
 | **Artificial Intelligence** | [Google GenAI SDK](https://ai.google.dev/), Gemini 3.5 Flash (Fallback: Gemini 3.8 Flash), Agentic Tools & Structured Prompts |
 | **Web Scraping** | [Playwright Chromium](https://playwright.dev/python/), BeautifulSoup4, aiohttp |
 | **Database & ORM** | [SQLAlchemy 2.0](https://www.sqlalchemy.org/) (Async Engine), [aiosqlite](https://github.com/omnilib/aiosqlite), SQLite |
 | **Scheduler** | [APScheduler 3.x](https://apscheduler.readthedocs.io/) (AsyncIOScheduler) |
-| **Frontend & PWA** | Vanilla ES6+ JavaScript, CSS3 Variables, Google Material You, Web Speech API, Service Workers |
+| **Frontend & PWA** | Vanilla ES6+ JavaScript, CSS3 Variables, Nothing OS / Linear Style (Liquid Glass), Web Speech API, Service Workers |
 | **DevOps & Tunnels** | Systemd, Nginx Reverse Proxy, Let's Encrypt, Cloudflare Tunnels, SSH Reverse Port Forwarding |
 
 ---

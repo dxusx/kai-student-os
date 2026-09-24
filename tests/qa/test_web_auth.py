@@ -47,9 +47,16 @@ def test_auth_002_valid_login_and_jwt_ui(page: Page):
     # Assert modal hides and dashboard loads
     expect(auth_overlay).to_be_hidden(timeout=5000)
 
-    # Check localStorage
+    # Verify HttpOnly session cookie was set
+    cookies = page.context.cookies()
+    session_cookie = next((c for c in cookies if c["name"] == "kai_app_auth_token"), None)
+    assert session_cookie is not None, "kai_app_auth_token cookie was not set"
+    assert session_cookie.get("httpOnly") is True, "Session cookie must be HttpOnly"
+    assert session_cookie.get("sameSite", "").lower() in ("lax", "strict"), f"Expected SameSite Lax/Strict, got {session_cookie.get('sameSite')}"
+
+    # Hardening: sensitive auth token must NOT be stored in localStorage (preventing XSS exfiltration)
     stored_token = page.evaluate("() => localStorage.getItem('kai_app_auth_token')")
-    assert stored_token == alice_token, "Token was not stored in localStorage"
+    assert not stored_token, f"Token must not persist in localStorage, got {stored_token}"
 
 
 def test_auth_003_invalid_credentials_rejection_ui(page: Page):
@@ -90,10 +97,29 @@ def test_auth_004_expired_token_handling():
 
 
 def test_auth_005_token_persistence_on_reload(page: Page):
-    """AUTH-005: Token in localStorage persists across reload, no auth prompt shown."""
+    """AUTH-005: Session persists across reload via HttpOnly cookie, no auth prompt shown."""
     alice_token = get_alice_token()
+    page.context.add_cookies([
+        {
+            "name": "kai_app_auth_token",
+            "value": alice_token,
+            "domain": "127.0.0.1",
+            "path": "/",
+            "httpOnly": True,
+            "sameSite": "Lax",
+            "secure": False
+        },
+        {
+            "name": "kai_session_active",
+            "value": "1",
+            "domain": "127.0.0.1",
+            "path": "/",
+            "httpOnly": False,
+            "sameSite": "Lax",
+            "secure": False
+        }
+    ])
     page.goto(BASE_URL)
-    page.evaluate(f"token => localStorage.setItem('kai_app_auth_token', token)", alice_token)
     page.reload()
     page.wait_for_load_state("networkidle")
 
@@ -105,10 +131,29 @@ def test_auth_005_token_persistence_on_reload(page: Page):
 
 
 def test_auth_006_logout_clearing_state(page: Page):
-    """AUTH-006: Reset token action clears localStorage and shows auth modal."""
+    """AUTH-006: Reset token action clears session cookie & localStorage and shows auth modal."""
     alice_token = get_alice_token()
+    page.context.add_cookies([
+        {
+            "name": "kai_app_auth_token",
+            "value": alice_token,
+            "domain": "127.0.0.1",
+            "path": "/",
+            "httpOnly": True,
+            "sameSite": "Lax",
+            "secure": False
+        },
+        {
+            "name": "kai_session_active",
+            "value": "1",
+            "domain": "127.0.0.1",
+            "path": "/",
+            "httpOnly": False,
+            "sameSite": "Lax",
+            "secure": False
+        }
+    ])
     page.goto(BASE_URL)
-    page.evaluate(f"token => localStorage.setItem('kai_app_auth_token', token)", alice_token)
     page.reload()
     page.wait_for_load_state("networkidle")
 
@@ -125,7 +170,7 @@ def test_auth_006_logout_clearing_state(page: Page):
     auth_overlay = page.locator("#auth-overlay")
     expect(auth_overlay).to_be_visible(timeout=5000)
 
-    # Verify token cleared
+    # Verify token cleared from localStorage
     stored = page.evaluate("() => localStorage.getItem('kai_app_auth_token')")
     assert stored is None or stored == "", "Token was not cleared on logout"
 
@@ -133,13 +178,31 @@ def test_auth_006_logout_clearing_state(page: Page):
 def test_auth_007_multi_tab_sync(browser):
     """AUTH-007: Multi-tab session behavior test."""
     context = browser.new_context()
+    alice_token = get_alice_token()
+    context.add_cookies([
+        {
+            "name": "kai_app_auth_token",
+            "value": alice_token,
+            "domain": "127.0.0.1",
+            "path": "/",
+            "httpOnly": True,
+            "sameSite": "Lax",
+            "secure": False
+        },
+        {
+            "name": "kai_session_active",
+            "value": "1",
+            "domain": "127.0.0.1",
+            "path": "/",
+            "httpOnly": False,
+            "sameSite": "Lax",
+            "secure": False
+        }
+    ])
     page1 = context.new_page()
     page2 = context.new_page()
 
-    alice_token = get_alice_token()
     page1.goto(BASE_URL)
-    page1.evaluate(f"token => localStorage.setItem('kai_app_auth_token', token)", alice_token)
-    page1.reload()
     page1.wait_for_load_state("networkidle")
 
     page2.goto(BASE_URL)
@@ -152,8 +215,7 @@ def test_auth_007_multi_tab_sync(browser):
     # Clear token in page1
     page1.evaluate("() => clearAuthToken()")
 
-    # In single-page apps without storage event listeners on auth, page2 might retain state until next request.
-    # Check if storage event or next api request in page2 triggers logout
+    # Check if next api request in page2 triggers logout
     page2.evaluate("() => apiFetch('/api/stats').catch(() => {})")
     page2.wait_for_timeout(500)
 
