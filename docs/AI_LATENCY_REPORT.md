@@ -1,6 +1,6 @@
 # KAI Student OS — AI Latency & Performance Breakdown Report
 
-**Date:** 2026-09-24 01:02:16  
+**Date:** 2026-09-24 23:39:26  
 **Mode:** LOCAL (Mock AI Provider)  
 **Timing Instrumentation:** High-precision monotonic clock (`time.perf_counter`)  
 **Measurement Model:** `nested_partition` (Exact non-overlapping wall clock decomposition)  
@@ -33,39 +33,39 @@ TOTAL WALL CLOCK (t15 - t0)
 
 | Metric | Min (ms) | Median / p50 (ms) | Mean (ms) | p95 (ms) | Max (ms) | Provider / SLA Notes |
 |---|---|---|---|---|---|---|
-| **Total Wall Clock** | 2.52ms | 5.28ms | 6.19ms | 10.93ms | 13.85ms | Verified against active mode |
-| **Network Wire Transport** | 0.5ms | 2.94ms | 3.29ms | 5.44ms | 5.6ms | Verified against active mode |
-| **Backend Processing** | 2.01ms | 2.27ms | 2.88ms | 5.76ms | 8.22ms | Verified against active mode |
-| **Gemini Inference** | 0.01ms | 0.03ms | 0.55ms | 2.93ms | 5.29ms | **MOCK ONLY** in LOCAL mode |
+| **Total Wall Clock** | 2.59ms | 4.7ms | 5.5ms | 10.1ms | 12.34ms | Verified against active mode |
+| **Network Wire Transport** | 0.52ms | 2.61ms | 2.88ms | 4.99ms | 5.27ms | Verified against active mode |
+| **Backend Processing** | 2.0ms | 2.04ms | 2.6ms | 5.16ms | 7.68ms | Verified against active mode |
+| **Gemini Inference** | 0.01ms | 0.02ms | 0.54ms | 2.86ms | 5.18ms | **MOCK ONLY** in LOCAL mode |
 
 ## Latency Measurements Breakdown
 
 | Test ID | Trace ID | Scenario | Model | Frontend | Gap | Network (Wire) | Backend | Gemini Upstream | Validation | DB Lookup | Render | Total Wall Clock | Provider | Mock SLA (<500ms) | Real AI SLA (<3s) | Math Integrity |
 |---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
-| AI-001 | `trace-ai-001-1790200880900` | AI Task Parse Pipeli | nested_partition | 0.0ms | 0.0ms | 5.24ms | 2.09ms | 0.03 ms (MOCK ONLY) | 0.04ms | 2.0ms | 0.03ms | **7.36ms** | **MOCK** | ✅ PASS (<500ms) | NOT VERIFIED (Mock Mode) | ✅ VALID |
-| AI-002 | `trace-ai-002-1790200880989` | AI Task Parse Pipeli | nested_partition | 0.0ms | 0.0ms | 3.46ms | 2.75ms | 0.04 ms (MOCK ONLY) | 0.02ms | 2.66ms | 0.03ms | **6.23ms** | **MOCK** | ✅ PASS (<500ms) | NOT VERIFIED (Mock Mode) | ✅ VALID |
-| AI-003 | `trace-ai-003-1790200881084` | AI Task Parse Pipeli | nested_partition | 0.0ms | 0.0ms | 3.75ms | 2.42ms | 0.02 ms (MOCK ONLY) | 0.04ms | 2.35ms | 0.02ms | **6.19ms** | **MOCK** | ✅ PASS (<500ms) | NOT VERIFIED (Mock Mode) | ✅ VALID |
-| AI-004 | `trace-ai-004-1790200881175` | AI Task Parse Pipeli | nested_partition | 0.0ms | 0.0ms | 2.94ms | 2.27ms | 0.02 ms (MOCK ONLY) | 0.04ms | 2.19ms | 0.02ms | **5.23ms** | **MOCK** | ✅ PASS (<500ms) | NOT VERIFIED (Mock Mode) | ✅ VALID |
-| AI-005 | `trace-ai-005-1790200881259` | AI Task Parse Pipeli | nested_partition | 0.0ms | 0.0ms | 2.87ms | 2.16ms | 0.02 ms (MOCK ONLY) | 0.01ms | 2.12ms | 0.02ms | **5.05ms** | **MOCK** | ✅ PASS (<500ms) | NOT VERIFIED (Mock Mode) | ✅ VALID |
-| AI-006 | `trace-ai-006-1790200881344` | AI Task Parse Pipeli | nested_partition | 0.0ms | 0.0ms | 0.5ms | 2.01ms | 0.03 ms (MOCK ONLY) | 1.0ms | 1.0ms | 0.01ms | **2.52ms** | **MOCK** | ✅ PASS (<500ms) | NOT VERIFIED (Mock Mode) | ✅ VALID |
-| AI-007 | `trace-ai-007-1790200881426` | AI Task Parse Pipeli | nested_partition | 0.0ms | 0.0ms | 2.69ms | 2.21ms | 0.01 ms (MOCK ONLY) | 0.01ms | 2.17ms | 0.02ms | **4.92ms** | **MOCK** | ✅ PASS (<500ms) | NOT VERIFIED (Mock Mode) | ✅ VALID |
-| AI-008 | `trace-ai-008-1790200881521` | AI Task Parse Pipeli | nested_partition | 0.0ms | 0.0ms | 5.6ms | 8.22ms | 5.29 ms (MOCK ONLY) | 0.62ms | 2.29ms | 0.02ms | **13.85ms** | **MOCK** | ✅ PASS (<500ms) | NOT VERIFIED (Mock Mode) | ✅ VALID |
-| AI-009 | `trace-ai-009-1790200881610` | AI Task Parse Pipeli | nested_partition | 0.0ms | 0.0ms | 2.93ms | 2.28ms | 0.03 ms (MOCK ONLY) | 0.01ms | 2.22ms | 0.02ms | **5.23ms** | **MOCK** | ✅ PASS (<500ms) | NOT VERIFIED (Mock Mode) | ✅ VALID |
-| AI-010 | `trace-ai-010-1790200881705` | AI Task Parse Pipeli | nested_partition | 0.0ms | 0.0ms | 2.92ms | 2.38ms | 0.02 ms (MOCK ONLY) | 0.01ms | 2.34ms | 0.02ms | **5.32ms** | **MOCK** | ✅ PASS (<500ms) | NOT VERIFIED (Mock Mode) | ✅ VALID |
-| AI-011 | `trace-ai-011-1790200884350` | AI Preview & Confirm | nested_partition | 14.44ms | 0.02ms | 194.78ms | 2.3ms | 0.02 ms (MOCK ONLY) | 0.04ms | 2.21ms | 16.67ms | **228.21ms** | **MOCK** | ✅ PASS (<500ms) | NOT VERIFIED (Mock Mode) | ✅ VALID |
-| AI-012 | `trace-ai-012-1790200887128` | AI Preview & Confirm | nested_partition | 14.26ms | 0.02ms | 227.47ms | 2.91ms | 0.02 ms (MOCK ONLY) | 0.04ms | 2.8ms | 17.89ms | **262.55ms** | **MOCK** | ✅ PASS (<500ms) | NOT VERIFIED (Mock Mode) | ✅ VALID |
-| AI-013 | `trace-ai-013-1790200889749` | AI Preview & Confirm | nested_partition | 16.88ms | 0.03ms | 206.91ms | 3.2ms | 0.03 ms (MOCK ONLY) | 0.05ms | 3.09ms | 17.9ms | **244.92ms** | **MOCK** | ✅ PASS (<500ms) | NOT VERIFIED (Mock Mode) | ✅ VALID |
-| AI-014 | `trace-ai-014-1790200892158` | AI Preview & Confirm | nested_partition | 14.2ms | 0.73ms | 214.05ms | 2.59ms | 0.03 ms (MOCK ONLY) | 0.04ms | 2.49ms | 17.4ms | **248.97ms** | **MOCK** | ✅ PASS (<500ms) | NOT VERIFIED (Mock Mode) | ✅ VALID |
-| AI-015 | `trace-ai-015-1790200892242` | AI Resilience & Erro | nested_partition | 0.0ms | 0.0ms | 0.02ms | 0.02ms | 0.0 ms (MOCK ONLY) | 0.02ms | 0.0ms | 0.0ms | **0.04ms** | **MOCK** | ✅ PASS (<500ms) | NOT VERIFIED (Mock Mode) | ✅ VALID |
-| AI-016 | `trace-ai-016-1790200892317` | AI Resilience & Erro | nested_partition | 0.0ms | 0.0ms | 0.02ms | 0.02ms | 0.0 ms (MOCK ONLY) | 0.01ms | 0.0ms | 0.0ms | **0.03ms** | **MOCK** | ✅ PASS (<500ms) | NOT VERIFIED (Mock Mode) | ✅ VALID |
-| AI-017 | `trace-ai-017-1790200892390` | AI Resilience & Erro | nested_partition | 0.0ms | 0.0ms | 0.02ms | 0.02ms | 0.0 ms (MOCK ONLY) | 0.02ms | 0.0ms | 0.0ms | **0.04ms** | **MOCK** | ✅ PASS (<500ms) | NOT VERIFIED (Mock Mode) | ✅ VALID |
-| AI-018 | `trace-ai-018-1790200892461` | AI Resilience & Erro | nested_partition | 0.0ms | 0.0ms | 0.02ms | 0.02ms | 0.0 ms (MOCK ONLY) | 0.01ms | 0.0ms | 0.0ms | **0.03ms** | **MOCK** | ✅ PASS (<500ms) | NOT VERIFIED (Mock Mode) | ✅ VALID |
-| AI-019 | `trace-ai-019-1790200892536` | AI Resilience & Erro | nested_partition | 0.0ms | 0.0ms | 0.02ms | 0.02ms | 0.0 ms (MOCK ONLY) | 0.02ms | 0.0ms | 0.0ms | **0.05ms** | **MOCK** | ✅ PASS (<500ms) | NOT VERIFIED (Mock Mode) | ✅ VALID |
-| AI-020 | `trace-ai-020-1790200892613` | AI Resilience & Erro | nested_partition | 0.0ms | 0.0ms | 0.01ms | 0.01ms | 0.0 ms (MOCK ONLY) | 0.01ms | 0.0ms | 0.0ms | **0.02ms** | **MOCK** | ✅ PASS (<500ms) | NOT VERIFIED (Mock Mode) | ✅ VALID |
-| AI-021 | `trace-ai-021-1790200892694` | AI Resilience & Erro | nested_partition | 0.0ms | 0.0ms | 0.02ms | 0.02ms | 0.0 ms (MOCK ONLY) | 0.02ms | 0.0ms | 0.0ms | **0.04ms** | **MOCK** | ✅ PASS (<500ms) | NOT VERIFIED (Mock Mode) | ✅ VALID |
-| AI-022 | `trace-ai-022-1790200892781` | AI Resilience & Erro | nested_partition | 0.0ms | 0.0ms | 0.02ms | 0.02ms | 0.0 ms (MOCK ONLY) | 0.02ms | 0.0ms | 0.0ms | **0.04ms** | **MOCK** | ✅ PASS (<500ms) | NOT VERIFIED (Mock Mode) | ✅ VALID |
-| AI-023 | `trace-ai-023-1790200893339` | AI Lab Summary | nested_partition | 0.0ms | 0.0ms | 477.65ms | 5.17ms | 0.01 ms (MOCK ONLY) | 0.02ms | 5.15ms | 0.03ms | **482.85ms** | **MOCK** | ✅ PASS (<500ms) | NOT VERIFIED (Mock Mode) | ✅ VALID |
-| AI-024 | `trace-ai-024-1790200895374` | Voice Input Fallback | nested_partition | 0.03ms | 0.0ms | 199.21ms | 199.21ms | 0.0 ms (MOCK ONLY) | 0.0ms | 0.0ms | 0.0ms | **398.45ms** | **MOCK** | ✅ PASS (<500ms) | NOT VERIFIED (Mock Mode) | ✅ VALID |
+| AI-001 | `trace-ai-001-1790282311658` | AI Task Parse Pipeli | nested_partition | 0.0ms | 0.0ms | 5.27ms | 2.06ms | 0.02 ms (MOCK ONLY) | 0.03ms | 1.99ms | 0.03ms | **7.36ms** | **MOCK** | ✅ PASS (<500ms) | NOT VERIFIED (Mock Mode) | ✅ VALID |
+| AI-002 | `trace-ai-002-1790282311735` | AI Task Parse Pipeli | nested_partition | 0.0ms | 0.0ms | 2.63ms | 2.06ms | 0.02 ms (MOCK ONLY) | 0.01ms | 2.01ms | 0.02ms | **4.71ms** | **MOCK** | ✅ PASS (<500ms) | NOT VERIFIED (Mock Mode) | ✅ VALID |
+| AI-003 | `trace-ai-003-1790282311813` | AI Task Parse Pipeli | nested_partition | 0.0ms | 0.0ms | 2.56ms | 2.0ms | 0.02 ms (MOCK ONLY) | 0.03ms | 1.94ms | 0.02ms | **4.58ms** | **MOCK** | ✅ PASS (<500ms) | NOT VERIFIED (Mock Mode) | ✅ VALID |
+| AI-004 | `trace-ai-004-1790282311889` | AI Task Parse Pipeli | nested_partition | 0.0ms | 0.0ms | 2.59ms | 2.07ms | 0.02 ms (MOCK ONLY) | 0.03ms | 2.01ms | 0.02ms | **4.68ms** | **MOCK** | ✅ PASS (<500ms) | NOT VERIFIED (Mock Mode) | ✅ VALID |
+| AI-005 | `trace-ai-005-1790282311964` | AI Task Parse Pipeli | nested_partition | 0.0ms | 0.0ms | 2.59ms | 2.0ms | 0.02 ms (MOCK ONLY) | 0.01ms | 1.96ms | 0.02ms | **4.61ms** | **MOCK** | ✅ PASS (<500ms) | NOT VERIFIED (Mock Mode) | ✅ VALID |
+| AI-006 | `trace-ai-006-1790282312037` | AI Task Parse Pipeli | nested_partition | 0.0ms | 0.0ms | 0.52ms | 2.06ms | 0.03 ms (MOCK ONLY) | 1.0ms | 1.0ms | 0.01ms | **2.59ms** | **MOCK** | ✅ PASS (<500ms) | NOT VERIFIED (Mock Mode) | ✅ VALID |
+| AI-007 | `trace-ai-007-1790282312116` | AI Task Parse Pipeli | nested_partition | 0.0ms | 0.0ms | 2.71ms | 2.03ms | 0.01 ms (MOCK ONLY) | 0.01ms | 1.99ms | 0.02ms | **4.76ms** | **MOCK** | ✅ PASS (<500ms) | NOT VERIFIED (Mock Mode) | ✅ VALID |
+| AI-008 | `trace-ai-008-1790282312200` | AI Task Parse Pipeli | nested_partition | 0.0ms | 0.0ms | 4.64ms | 7.68ms | 5.18 ms (MOCK ONLY) | 0.55ms | 1.93ms | 0.02ms | **12.34ms** | **MOCK** | ✅ PASS (<500ms) | NOT VERIFIED (Mock Mode) | ✅ VALID |
+| AI-009 | `trace-ai-009-1790282312276` | AI Task Parse Pipeli | nested_partition | 0.0ms | 0.0ms | 2.59ms | 2.03ms | 0.03 ms (MOCK ONLY) | 0.01ms | 1.98ms | 0.02ms | **4.64ms** | **MOCK** | ✅ PASS (<500ms) | NOT VERIFIED (Mock Mode) | ✅ VALID |
+| AI-010 | `trace-ai-010-1790282312353` | AI Task Parse Pipeli | nested_partition | 0.0ms | 0.0ms | 2.69ms | 2.03ms | 0.01 ms (MOCK ONLY) | 0.01ms | 1.99ms | 0.02ms | **4.74ms** | **MOCK** | ✅ PASS (<500ms) | NOT VERIFIED (Mock Mode) | ✅ VALID |
+| AI-011 | `trace-ai-011-1790282314907` | AI Preview & Confirm | nested_partition | 13.0ms | 0.02ms | 271.41ms | 2.48ms | 0.02 ms (MOCK ONLY) | 0.03ms | 2.39ms | 16.83ms | **303.74ms** | **MOCK** | ✅ PASS (<500ms) | NOT VERIFIED (Mock Mode) | ✅ VALID |
+| AI-012 | `trace-ai-012-1790282317507` | AI Preview & Confirm | nested_partition | 13.44ms | 0.02ms | 270.0ms | 2.51ms | 0.02 ms (MOCK ONLY) | 0.04ms | 2.42ms | 16.43ms | **302.4ms** | **MOCK** | ✅ PASS (<500ms) | NOT VERIFIED (Mock Mode) | ✅ VALID |
+| AI-013 | `trace-ai-013-1790282320074` | AI Preview & Confirm | nested_partition | 13.68ms | 0.02ms | 215.57ms | 2.73ms | 0.02 ms (MOCK ONLY) | 0.04ms | 2.64ms | 17.12ms | **249.12ms** | **MOCK** | ✅ PASS (<500ms) | NOT VERIFIED (Mock Mode) | ✅ VALID |
+| AI-014 | `trace-ai-014-1790282322984` | AI Preview & Confirm | nested_partition | 13.64ms | 0.7ms | 266.58ms | 2.46ms | 0.02 ms (MOCK ONLY) | 0.03ms | 2.38ms | 16.82ms | **300.2ms** | **MOCK** | ✅ PASS (<500ms) | NOT VERIFIED (Mock Mode) | ✅ VALID |
+| AI-015 | `trace-ai-015-1790282323057` | AI Resilience & Erro | nested_partition | 0.0ms | 0.0ms | 0.02ms | 0.02ms | 0.0 ms (MOCK ONLY) | 0.01ms | 0.0ms | 0.0ms | **0.04ms** | **MOCK** | ✅ PASS (<500ms) | NOT VERIFIED (Mock Mode) | ✅ VALID |
+| AI-016 | `trace-ai-016-1790282323127` | AI Resilience & Erro | nested_partition | 0.0ms | 0.0ms | 0.02ms | 0.02ms | 0.0 ms (MOCK ONLY) | 0.01ms | 0.0ms | 0.0ms | **0.03ms** | **MOCK** | ✅ PASS (<500ms) | NOT VERIFIED (Mock Mode) | ✅ VALID |
+| AI-017 | `trace-ai-017-1790282323200` | AI Resilience & Erro | nested_partition | 0.0ms | 0.0ms | 0.02ms | 0.02ms | 0.0 ms (MOCK ONLY) | 0.01ms | 0.0ms | 0.0ms | **0.04ms** | **MOCK** | ✅ PASS (<500ms) | NOT VERIFIED (Mock Mode) | ✅ VALID |
+| AI-018 | `trace-ai-018-1790282323271` | AI Resilience & Erro | nested_partition | 0.0ms | 0.0ms | 0.02ms | 0.02ms | 0.0 ms (MOCK ONLY) | 0.01ms | 0.0ms | 0.0ms | **0.03ms** | **MOCK** | ✅ PASS (<500ms) | NOT VERIFIED (Mock Mode) | ✅ VALID |
+| AI-019 | `trace-ai-019-1790282323341` | AI Resilience & Erro | nested_partition | 0.0ms | 0.0ms | 0.02ms | 0.02ms | 0.0 ms (MOCK ONLY) | 0.02ms | 0.0ms | 0.0ms | **0.05ms** | **MOCK** | ✅ PASS (<500ms) | NOT VERIFIED (Mock Mode) | ✅ VALID |
+| AI-020 | `trace-ai-020-1790282323414` | AI Resilience & Erro | nested_partition | 0.0ms | 0.0ms | 0.01ms | 0.01ms | 0.0 ms (MOCK ONLY) | 0.01ms | 0.0ms | 0.0ms | **0.02ms** | **MOCK** | ✅ PASS (<500ms) | NOT VERIFIED (Mock Mode) | ✅ VALID |
+| AI-021 | `trace-ai-021-1790282323485` | AI Resilience & Erro | nested_partition | 0.0ms | 0.0ms | 0.02ms | 0.02ms | 0.0 ms (MOCK ONLY) | 0.01ms | 0.0ms | 0.0ms | **0.04ms** | **MOCK** | ✅ PASS (<500ms) | NOT VERIFIED (Mock Mode) | ✅ VALID |
+| AI-022 | `trace-ai-022-1790282323559` | AI Resilience & Erro | nested_partition | 0.0ms | 0.0ms | 0.02ms | 0.02ms | 0.0 ms (MOCK ONLY) | 0.02ms | 0.0ms | 0.0ms | **0.04ms** | **MOCK** | ✅ PASS (<500ms) | NOT VERIFIED (Mock Mode) | ✅ VALID |
+| AI-023 | `trace-ai-023-1790282324118` | AI Lab Summary | nested_partition | 0.0ms | 0.0ms | 483.87ms | 5.26ms | 0.01 ms (MOCK ONLY) | 0.03ms | 5.22ms | 0.03ms | **489.16ms** | **MOCK** | ✅ PASS (<500ms) | NOT VERIFIED (Mock Mode) | ✅ VALID |
+| AI-024 | `trace-ai-024-1790282326108` | Voice Input Fallback | nested_partition | 0.02ms | 0.0ms | 215.03ms | 215.03ms | 0.0 ms (MOCK ONLY) | 0.0ms | 0.0ms | 0.0ms | **430.08ms** | **MOCK** | ✅ PASS (<500ms) | NOT VERIFIED (Mock Mode) | ✅ VALID |
 
 ## Provider & SLA Verification
 

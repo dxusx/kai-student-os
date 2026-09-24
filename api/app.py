@@ -1405,36 +1405,26 @@ async def ai_chat(req: AiChatRequest, request: Request):
             "data": res_tasks,
         })
 
-    # 3. Construct System Prompt with student context
-    mode = (req.mode or "tutor").strip().lower()
-    if mode not in ("tutor", "organizer", "report"):
-        mode = "tutor"
+    # 3. Construct System Prompt with student context (Gemini 3.5 Flash)
+    today_str = f"{RUSSIAN_WEEKDAYS.get(today_wd, '')} ({today_date.strftime('%d.%m.%Y')}), время: {now_msk.strftime('%H:%M')} МСК"
+    parity_str = f"{today_parity} ({'четная' if today_parity == 2 else 'нечетная'})"
 
     system_instruction = (
-        "Ты — персональный ассистент студента КАИ Карима (гр. 5108, 2 п/г).\n"
-        "КОНТЕКСТ СТУДЕНТА ПРЯМО СЕЙЧАС:\n"
-        f"- Сегодня: {RUSSIAN_WEEKDAYS.get(today_wd, '')} ({today_date.strftime('%d.%m.%Y')}), четность: {today_parity} ({'четная' if today_parity == 2 else 'нечетная'}), время: {now_msk.strftime('%H:%M')} МСК\n"
-        f"- Пары на сегодня:\n{today_lessons_str}\n"
-        f"- Пары на завтра ({RUSSIAN_WEEKDAYS.get(tomorrow_wd, '')}, {tomorrow_date.strftime('%d.%m.%Y')}):\n{tomorrow_lessons_str}\n"
-        f"- Актуальные несданные работы (todo):\n{pending_tasks_str}\n\n"
-        "ПРАВИЛА ОТВЕТА:\n"
-        "1. Отвечай прямо, точно и полезно на русском языке, опираясь на эти данные.\n"
-        "2. Если спросили 'что задали на завтра' — посмотри пары на завтра, найди долги по этим предметам и четко перечисли их. Если по предметам на завтра заданий нет — прямо скажи об этом.\n"
-        "3. Не используй шаблонных фраз и не повторяй вопрос.\n"
-        "4. Для математических выражений используй LaTeX ($...$ и $$...$$)."
+        "Ты — модель Gemini 3.5 Flash, интеллектуальный партнер студента КНИТУ-КАИ Карима (гр. 5108, 2 п/г).\n"
+        "Ты мыслишь свободно, глубоко и без шаблонов. Помогай с любыми задачами: сложный вышмат, физика, программирование, история, разбор методичек.\n"
+        "АКТУАЛЬНЫЙ КОНТЕКСТ СТУДЕНТА:\n"
+        f"- Сегодня: {today_str}, четность: {parity_str}\n"
+        f"- Пары на сегодня (КапиПара): {today_lessons_str}\n"
+        f"- Пары на завтра (КапиПара): {tomorrow_lessons_str}\n"
+        f"- Несданные задания (Blackboard): {pending_tasks_str}\n"
+        "Если вопрос касается расписания или заданий на завтра — посмотри эти данные и прямо перечисли их."
     )
-    if mode == "tutor":
-        system_instruction += "\nРежим: Академический тьютор. Помогай с решением задач, кодом, физикой и математикой с полными выкладками."
-    elif mode == "report":
-        system_instruction += "\nРежим: Генератор отчетов. Помогай оформлять отчеты и лабораторные по ГОСТ с листингами и выводами."
-    elif mode == "organizer":
-        system_instruction += "\nРежим: Органайзер. Помогай с планированием графика, расписанием и контролем дедлайнов."
 
-    # 4. Asynchronous Google GenAI SDK call
+    # 4. Asynchronous Google GenAI SDK call (Low thinking preset: budget=1024)
     if not gemini_svc.is_available() or gemini_svc._client is None or types is None:
         raise HTTPException(
-            status_code=503,
-            detail="Сервис Google Gemini не настроен или ключ API отсутствует. Это не повлияло на сохранённые задания."
+            status_code=500,
+            detail="Сервис Google Gemini не настроен или ключ API отсутствует."
         )
 
     contents: List[Any] = []
@@ -1461,15 +1451,12 @@ async def ai_chat(req: AiChatRequest, request: Request):
 
     contents.append(types.Content(role="user", parts=last_parts))
 
-    candidate_models = ["gemini-3.5-flash"]
+    candidate_models = ["gemini-3.5-flash", "gemini-3.8-flash"]
     if settings.gemini_model and settings.gemini_model not in candidate_models:
-        candidate_models.append(settings.gemini_model)
-    for alt in ["gemini-3.6-flash", "gemini-2.5-flash-lite", "gemini-3.8-flash"]:
-        if alt not in candidate_models:
-            candidate_models.append(alt)
+        candidate_models.insert(0, settings.gemini_model)
 
     response_text = ""
-    succeeded_model = settings.gemini_model
+    succeeded_model = candidate_models[0]
     last_error: Optional[Exception] = None
 
     t0 = time.perf_counter()
@@ -1478,6 +1465,7 @@ async def ai_chat(req: AiChatRequest, request: Request):
             try:
                 gen_config = types.GenerateContentConfig(
                     system_instruction=system_instruction,
+                    thinking_config=types.ThinkingConfig(thinking_budget=1024),
                     temperature=0.7,
                 )
                 resp = await gemini_svc._client.aio.models.generate_content(
@@ -1502,32 +1490,25 @@ async def ai_chat(req: AiChatRequest, request: Request):
     duration_ms = int((time.perf_counter() - t0) * 1000)
 
     if not response_text:
-        # Fallback to high-quality academic response if all upstream models fail (e.g. offline testing/quota limits)
-        if mode == "report":
-            response_text = "Помогу оформить качественный академический отчет по лабораторной работе по ГОСТ 7.32. Структура отчета: цель работы, используемые приборы и стенды, практический ход работы, листинги кода или графики и содержательные выводы."
-        elif req.image_base64:
-            response_text = "Изображение задания успешно получено и обработано. Я готов разобрать формулы, составить конспект или создать задачу в расписании по материалам фото."
-        elif any(k in clean_lower for k in ["привет", "кто ты"]):
-            response_text = "Привет! Я персональный AI-репетитор и ассистент студента КАИ Карима (гр. 5108, 2 п/г). Помогаю разбираться в сложных предметах, следить за расписанием и сдавать лабораторные."
-        else:
-            sanitized_err = sanitize_text(str(last_error)) if last_error else "Все кандидаты моделей вернули пустой ответ"
-            cat = classify_ai_error(last_error) if last_error else AiErrorCategory.UPSTREAM_UNAVAILABLE
-            logger.error("All Gemini candidates failed: %s (%s)", sanitized_err, cat.value)
-            raise HTTPException(
-                status_code=503,
-                detail=f"Ошибка Google Gemini ({cat.value}): {sanitized_err}. Это не повлияло на сохранённые задания."
-            )
+        sanitized_err = sanitize_text(str(last_error)) if last_error else "Все кандидаты моделей вернули пустой ответ"
+        cat = classify_ai_error(last_error) if last_error else AiErrorCategory.UPSTREAM_UNAVAILABLE
+        logger.error("All Gemini candidates failed: %s (%s)", sanitized_err, cat.value)
+        raise HTTPException(
+            status_code=500,
+            detail=f"Ошибка Google Gemini ({cat.value}): {sanitized_err}"
+        )
 
     return {
         "response": response_text,
         "actions": executed_actions,
-        "mode": mode,
+        "mode": req.mode or "universal",
         "metadata": {
             "started_at": now_msk.isoformat(),
             "duration_ms": duration_ms,
             "provider": "google-gemini",
             "model": succeeded_model,
             "temperature": 0.7,
+            "thinking_budget": 1024,
             "success": True,
         },
     }

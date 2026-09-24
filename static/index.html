@@ -311,35 +311,11 @@
     <!-- ==================== TAB 3: AI STUDIO (GOOGLE GEMINI WORKSPACE) ==================== -->
     <section id="view-ai" class="app-view" role="region" aria-label="Google AI Studio">
       
-      <!-- 1. AI Studio Header & Mode Switcher -->
-      <div class="ai-studio-top-bar glass-subtle">
-        <div class="ai-studio-brand">
-          <div class="ai-sparkle-pill">
-            <svg class="sparkle-svg" width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
-              <path d="M12 2l2.4 7.2L22 12l-7.6 2.8L12 22l-2.4-7.2L2 12l7.6-2.8z"/>
-            </svg>
-            <span class="ai-studio-brand-title">AI Studio</span>
-          </div>
-          <span class="ai-studio-tag">Группа 5108</span>
-        </div>
-
-        <!-- Mode Switcher Segmented Control -->
-        <div class="ai-mode-switcher-row ai-segmented-control liquid-glass" id="ai-mode-switcher" role="tablist" aria-label="Режимы AI Studio">
-          <button class="ai-mode-chip active" data-mode="tutor" role="tab" aria-selected="true" title="Глубокие объяснения тем, примеры кода, разбор лабораторных">
-            <span class="chip-icon">🎓</span>
-            <span class="chip-label">Репетитор</span>
-          </button>
-          <button class="ai-mode-chip" data-mode="organizer" role="tab" aria-selected="false" title="Фокус на дедлайнах, оптимизации времени, расписании и долгах">
-            <span class="chip-icon">⚡</span>
-            <span class="chip-label">Органайзер</span>
-          </button>
-          <button class="ai-mode-chip" data-mode="report" role="tab" aria-selected="false" title="Структурирование отчетов по лабам, формулировка выводов по ГОСТ">
-            <span class="chip-icon">📝</span>
-            <span class="chip-label">
-              <span class="chip-label-full">Генератор отчетов</span>
-              <span class="chip-label-short">Отчеты</span>
-            </span>
-          </button>
+      <!-- 1. AI Studio Header (Nothing OS Style) -->
+      <div class="ai-studio-top-bar nothing-top-bar">
+        <div class="nothing-ai-brand">
+          <span class="nothing-status-dot"></span>
+          <span class="nothing-ai-title">GEMINI 3.5 FLASH // 5108</span>
         </div>
       </div>
 
@@ -363,20 +339,16 @@
       <div class="ai-studio-messages-container" id="ai-chat-messages">
         <!-- Initial Welcome Message from Assistant -->
         <div class="ai-msg-bubble ai-msg-assistant glass-card">
-          <div class="ai-msg-avatar">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
-              <path d="M12 2l2.4 7.2L22 12l-7.6 2.8L12 22l-2.4-7.2L2 12l7.6-2.8z"/>
-            </svg>
+          <div class="ai-msg-avatar nothing-avatar">
+            <span class="nothing-dot-inner"></span>
           </div>
           <div class="ai-msg-content">
             <div class="ai-msg-header">
-              <span class="ai-msg-author">Google AI Studio</span>
-              <span class="ai-msg-mode-badge" id="ai-active-mode-badge">🎓 Репетитор</span>
+              <span class="ai-msg-author">GEMINI 3.5 FLASH</span>
             </div>
             <div class="ai-msg-body">
-              <p>Привет! Я твой персональный AI-репетитор и ассистент в <strong>KAI Student OS</strong> (группа 5108, 2 подгруппа).</p>
-              <p>Я умею автономно проверять расписание, отслеживать дедлайны, создавать задачи и помогать с кодом и отчетами.</p>
-              <p>Задай вопрос, выбери подсказку выше или прикрепи фото задания через 📎!</p>
+              <p>Привет! Я модель Gemini 3.5 Flash — твой персональный интеллектуальный партнер (гр. 5108, 2 п/г).</p>
+              <p>Задавай любые вопросы по вышмату, физике, коду, расписанию или заданиям на завтра.</p>
             </div>
           </div>
         </div>
@@ -571,11 +543,14 @@
       <span class="dock-label">Задания</span>
     </button>
 
-    <button class="dock-tab glass-control" data-tab="ai" aria-label="Капи AI">
+    <button class="dock-tab glass-control" data-tab="ai" aria-label="Gemini 3.5 AI">
       <div class="dock-icon-box">
-        <span class="dock-emoji-icon" style="font-size: 1.25rem; line-height: 1;">🦫</span>
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="3"></circle>
+          <path d="M12 2v3M12 19v3M2 12h3M19 12h3"></path>
+        </svg>
       </div>
-      <span class="dock-label">Капи AI</span>
+      <span class="dock-label">Gemini</span>
     </button>
 
     <button class="dock-tab glass-control" data-tab="more" aria-label="Статистика">

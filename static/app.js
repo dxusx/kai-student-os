@@ -1841,26 +1841,17 @@ function setupGeminiEvents() {
     state.aiChatHistory = [];
   }
 
-  // 1. Mode Switcher Chips
+  // 1. Mode Switcher Chips (deprecated in Nothing OS)
   const modeChips = document.querySelectorAll('.ai-mode-chip');
-  modeChips.forEach((chip) => {
-    if (chip.dataset.mode === state.aiStudioMode) {
-      modeChips.forEach(c => c.classList.remove('active'));
-      chip.classList.add('active');
-    }
-    chip.addEventListener('click', () => {
-      modeChips.forEach(c => c.classList.remove('active'));
-      chip.classList.add('active');
-      const mode = chip.dataset.mode || 'tutor';
-      state.aiStudioMode = mode;
-      localStorage.setItem('kai_ai_studio_mode', mode);
-
-      const modeBadge = document.getElementById('ai-active-mode-badge');
-      const modeLabels = { tutor: '🎓 Репетитор', organizer: '⚡ Органайзер', report: '📝 Генератор отчетов' };
-      if (modeBadge) modeBadge.textContent = modeLabels[mode] || '🎓 Репетитор';
-      showToast('Режим: ' + (modeLabels[mode] || mode));
+  if (modeChips && modeChips.length > 0) {
+    modeChips.forEach((chip) => {
+      chip.addEventListener('click', () => {
+        modeChips.forEach(c => c.classList.remove('active'));
+        chip.classList.add('active');
+        state.aiStudioMode = chip.dataset.mode || 'universal';
+      });
     });
-  });
+  }
 
   // 2. Auto-resize textarea as user types & composer state
   const composerDock = document.getElementById('ai-composer-dock');
@@ -2049,7 +2040,7 @@ function setupGeminiEvents() {
         message: text,
         history: state.aiChatHistory || [],
         image_base64: curImg,
-        mode: state.aiStudioMode || 'tutor',
+        mode: 'universal',
       };
 
       const res = await apiFetch(API_BASE + '/api/ai/chat', {
@@ -2065,26 +2056,22 @@ function setupGeminiEvents() {
 
       const data = await res.json();
 
-      // 2. Append Assistant Message with Markdown & Action Widgets
+      // 2. Append Assistant Message with Markdown & Action Widgets (Nothing OS Style)
       if (messagesContainer) {
         let actionsHtml = '';
         if (data.actions && data.actions.length > 0) {
           actionsHtml = data.actions.map(act => renderActionWidget(act)).join('');
         }
 
-        const modeLabels = { tutor: '🎓 Тьютор', organizer: '⚡ Органайзер', report: '📝 Отчеты' };
-        const modeBadge = modeLabels[data.mode] || '🎓 Тьютор';
-
         const assistantMsgEl = document.createElement('div');
         assistantMsgEl.className = 'ai-msg-bubble ai-msg-assistant glass-card';
         assistantMsgEl.innerHTML = `
-          <div class="ai-msg-avatar" style="background: rgba(245, 158, 11, 0.15); border: 1px solid rgba(245, 158, 11, 0.3); font-size: 1.2rem; display: flex; align-items: center; justify-content: center;">
-            🦫
+          <div class="ai-msg-avatar nothing-avatar">
+            <span class="nothing-dot-inner"></span>
           </div>
           <div class="ai-msg-content">
             <div class="ai-msg-header">
-              <span class="ai-msg-author">Gemini AI (КапиПара)</span>
-              <span class="ai-msg-mode-badge">${modeBadge}</span>
+              <span class="ai-msg-author">GEMINI 3.5 FLASH</span>
             </div>
             <div class="ai-msg-body markdown-rendered">
               ${renderMarkdown(data.response)}

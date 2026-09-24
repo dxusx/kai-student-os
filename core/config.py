@@ -34,7 +34,7 @@ class Settings(BaseSettings):
     enable_tunnel: bool = Field(default=True, alias="ENABLE_TUNNEL")
 
     gemini_api_key: Optional[str] = Field(default=None, alias="GEMINI_API_KEY")
-    gemini_model: str = Field(default="gemini-3.6-flash", alias="GEMINI_MODEL")
+    gemini_model: str = Field(default="gemini-3.5-flash", alias="GEMINI_MODEL")
     gemini_proxy_url: Optional[str] = Field(default=None, alias="GEMINI_PROXY_URL")
     gemini_base_url: Optional[str] = Field(default=None, alias="GEMINI_BASE_URL")
 
