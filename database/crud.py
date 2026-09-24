@@ -7,6 +7,7 @@ from sqlalchemy import select, update, delete
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
+from core.subjects import resolve_canonical_subject
 from database.models import Subject, Task, TaskAttachment, User
 
 
@@ -15,21 +16,43 @@ async def get_or_create_subject(
     name: str,
     teacher: Optional[str] = None
 ) -> Subject:
-    """Fetch existing subject by name or create a new one."""
+    """Fetch existing subject by name/canonical_id or create a new one."""
     clean_name = name.strip()
+    canon_id, canon_name = resolve_canonical_subject(clean_name)
+
+    # 1. Exact match on clean_name
     stmt = select(Subject).where(Subject.name == clean_name)
     result = await session.execute(stmt)
-    subject = result.scalar_one_or_none()
+    subject = result.scalars().first()
+
+    # 2. Fallback to canon_name if different
+    if not subject and canon_name and canon_name != clean_name:
+        stmt = select(Subject).where(Subject.name == canon_name)
+        result = await session.execute(stmt)
+        subject = result.scalars().first()
+
+    # 3. Fallback to canon_id
+    if not subject and canon_id:
+        stmt = select(Subject).where(Subject.canonical_id == canon_id)
+        result = await session.execute(stmt)
+        subject = result.scalars().first()
 
     if not subject:
-        subject = Subject(name=clean_name, teacher=teacher.strip() if teacher else None)
+        subject = Subject(name=clean_name, canonical_id=canon_id, teacher=teacher.strip() if teacher else None)
         session.add(subject)
         await session.commit()
         await session.refresh(subject)
-    elif teacher and not subject.teacher:
-        subject.teacher = teacher.strip()
-        await session.commit()
-        await session.refresh(subject)
+    else:
+        changed = False
+        if not subject.canonical_id and canon_id:
+            subject.canonical_id = canon_id
+            changed = True
+        if teacher and not subject.teacher:
+            subject.teacher = teacher.strip()
+            changed = True
+        if changed:
+            await session.commit()
+            await session.refresh(subject)
 
     return subject
 
@@ -39,6 +62,13 @@ async def get_subjects(session: AsyncSession) -> List[Subject]:
     stmt = select(Subject).order_by(Subject.name)
     result = await session.execute(stmt)
     return list(result.scalars().all())
+
+
+async def get_subject_by_canonical_id(session: AsyncSession, canonical_id: str) -> Optional[Subject]:
+    """Retrieve subject by canonical ID."""
+    stmt = select(Subject).where(Subject.canonical_id == canonical_id)
+    result = await session.execute(stmt)
+    return result.scalar_one_or_none()
 
 
 async def get_subject_by_id(session: AsyncSession, subject_id: int) -> Optional[Subject]:

@@ -98,7 +98,7 @@ def test_ai_chat_function_calling_get_schedule(client, auth_headers):
 
 
 def test_ai_chat_function_calling_add_task(client, auth_headers):
-    """Verify Function Calling: task creation request invokes add_new_task tool and persists task."""
+    """Verify Function Calling: task creation request invokes add_new_task preview and confirms via confirm-action."""
     payload = {
         "message": "Создай задачу: Лабораторная работа №4 по ООП к следующей среде",
         "history": [],
@@ -112,10 +112,23 @@ def test_ai_chat_function_calling_add_task(client, auth_headers):
     add_actions = [a for a in data["actions"] if a.get("tool") == "add_new_task"]
     assert len(add_actions) >= 1
     action = add_actions[0]
-    assert action["status"] == "executed"
+    # Product consistency rule: Mutations must be preview first!
+    assert action["status"] == "preview"
+    assert action.get("requires_confirmation") is True
+    assert "action_id" in action
     assert "ООП" in action["summary"]
-    # Created task has id
-    assert "data" in action and "id" in action["data"]
+
+    # Now confirm the action explicitly
+    confirm_resp = client.post(
+        "/api/ai/confirm-action",
+        json={"action_id": action["action_id"], "confirmed": True, "action": action},
+        headers=auth_headers,
+    )
+    assert confirm_resp.status_code == 200
+    cdata = confirm_resp.json()
+    assert cdata["success"] is True
+    assert cdata["status"] == "executed"
+    assert "data" in cdata and "id" in cdata["data"]
 
 
 def test_ai_chat_function_calling_get_pending_tasks(client, auth_headers):
@@ -132,11 +145,13 @@ def test_ai_chat_function_calling_get_pending_tasks(client, auth_headers):
     assert "actions" in data
     task_actions = [a for a in data["actions"] if a.get("tool") == "get_pending_tasks"]
     assert len(task_actions) >= 1
+    # Read-only actions execute immediately
     assert task_actions[0]["status"] == "executed"
+    assert task_actions[0].get("requires_confirmation") is False
 
 
 def test_ai_chat_function_calling_toggle_task(client, auth_headers):
-    """Verify Function Calling: toggle task invokes toggle_task_status tool."""
+    """Verify Function Calling: toggle task invokes toggle_task_status preview and confirms via confirm-action."""
     payload = {
         "message": "Отметь задачу #1 как выполненную",
         "history": [],
@@ -147,7 +162,11 @@ def test_ai_chat_function_calling_toggle_task(client, auth_headers):
     data = resp.json()
     toggle_actions = [a for a in data["actions"] if a.get("tool") == "toggle_task_status"]
     assert len(toggle_actions) >= 1
-    assert toggle_actions[0]["status"] == "executed"
+    action = toggle_actions[0]
+    # Product consistency rule: Mutations must be preview first!
+    assert action["status"] == "preview"
+    assert action.get("requires_confirmation") is True
+    assert "action_id" in action
 
 
 def test_ai_chat_report_mode(client, auth_headers):

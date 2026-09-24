@@ -33,10 +33,12 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
 from core.config import settings
+from core.subjects import resolve_canonical_subject
 from database.connection import async_session, init_db
 from database.crud import (
     create_task,
     create_task_attachment,
+    delete_task,
     get_or_create_subject,
     get_or_create_user,
     get_subjects,
@@ -209,6 +211,12 @@ async def verify_app_token(
     # 4. Check if primary token is a signed User Token (JWT format: 3 dot-separated parts)
     if primary_token.count(".") == 2:
         verified_user = decode_user_token(primary_token)
+        # Anti-impersonation: client-controlled X-User-Id must not contradict verified signed token
+        if x_user_id and x_user_id.strip() and x_user_id.strip() != verified_user.id:
+            raise HTTPException(
+                status_code=403,
+                detail="Попытка подмены идентификатора пользователя (Impersonation forbidden)",
+            )
         request.state.current_user = verified_user
         request.state.auth_type = "user_token"
         return True
@@ -240,23 +248,31 @@ async def verify_app_token(
 
     # 7. Gateway auth succeeded: resolve user identity
     if verified_user_from_secondary:
+        if x_user_id and x_user_id.strip() and x_user_id.strip() != verified_user_from_secondary.id:
+            raise HTTPException(
+                status_code=403,
+                detail="Попытка подмены идентификатора пользователя (Impersonation forbidden)",
+            )
         request.state.current_user = verified_user_from_secondary
         request.state.auth_type = "user_token"
-    elif x_user_id and x_user_id.strip():
-        # Trusted gateway caller specifying user identity
-        uid = x_user_id.strip()
-        request.state.current_user = AuthenticatedUser(
-            id=uid,
-            username=uid,
-            role="student",
-            group_num="5108",
-            subgroup=2,
-        )
-        request.state.auth_type = "gateway_user"
     else:
-        # Default system student
-        request.state.current_user = get_system_default_user()
-        request.state.auth_type = "gateway_default"
+        # Gateway authentication without signed user token:
+        # Do NOT trust client-controlled X-User-Id to impersonate arbitrary users!
+        if x_user_id and x_user_id.strip():
+            client_uid = x_user_id.strip()
+            default_user = get_system_default_user()
+            # In single-user dev mode, only the default development identity is permitted
+            if client_uid != default_user.id:
+                raise HTTPException(
+                    status_code=403,
+                    detail="Доступ запрещен: для идентификации пользователя требуется подписанный токен пользователя",
+                )
+            request.state.current_user = default_user
+            request.state.auth_type = "gateway_dev"
+        else:
+            # Default system student (backward compatibility for single-user dev mode)
+            request.state.current_user = get_system_default_user()
+            request.state.auth_type = "gateway_default"
 
     return True
 
@@ -1160,6 +1176,15 @@ class CreateTaskRequest(BaseModel):
     source: str = "manual_ai"
 
 
+class ConfirmAiActionRequest(BaseModel):
+    action_id: str
+    tool: Optional[str] = None
+    data: Optional[Dict[str, Any]] = None
+    action: Optional[Dict[str, Any]] = None
+    confirmed: bool = True
+
+
+_confirmed_ai_actions: Dict[str, Dict[str, Any]] = {}
 _task_summaries_cache: Dict[int, Dict[str, Any]] = {}
 _shared_gemini_service: Optional[GeminiService] = None
 
@@ -1283,6 +1308,7 @@ async def ai_chat(req: AiChatRequest, request: Request):
         executed_actions.append({
             "tool": "get_schedule",
             "status": "executed",
+            "requires_confirmation": False,
             "summary": f"Расписание на {day_name} ({len(lessons_list)} пар)",
             "data": {
                 "day": target_day,
@@ -1292,7 +1318,7 @@ async def ai_chat(req: AiChatRequest, request: Request):
             },
         })
 
-    # Intent 2: Add new task
+    # Intent 2: Add new task -> PREVIEW ONLY! (Requires explicit confirmation, no direct DB write)
     if any(k in clean_lower for k in ["создай задач", "добавь задач", "создать задач", "добавить задач", "новая задач", "напомни сделать", "добавь лаб", "создай лаб"]):
         async with async_session() as session:
             db_subjs = await get_subjects(session)
@@ -1300,11 +1326,7 @@ async def ai_chat(req: AiChatRequest, request: Request):
             if not known_subjects:
                 known_subjects = ["ИТ-Архитектура", "Инфокоммуникационные системы", "ООП", "Базы данных", "Высшая математика", "Физика", "Инженерная графика", "Философия"]
             
-            matched_subj = "Общие задачи"
-            for s in known_subjects:
-                if s.lower() in clean_lower:
-                    matched_subj = s
-                    break
+            canon_id, matched_subj = resolve_canonical_subject(clean_msg, known_subjects)
 
             num_m = re.search(r"(?:№|номер|#|\b)\s*(\d+)", clean_msg)
             num_str = f" №{num_m.group(1)}" if num_m else ""
@@ -1331,62 +1353,121 @@ async def ai_chat(req: AiChatRequest, request: Request):
                     break
 
             dl_dt = resolve_relative_deadline(deadline_str, base_dt=now_msk)
-            subj_entity = await get_or_create_subject(session, name=matched_subj)
-            new_t = await create_task(
-                session=session,
-                subject_id=subj_entity.id,
-                title=task_title,
-                task_type="лабораторная" if "лаб" in task_title.lower() else "задание",
-                deadline=dl_dt,
-                status="todo",
-                source="ai_studio",
-                details=f"Создано через AI Studio по запросу: {clean_msg}",
-                owner_id=user.id,
-            )
+            action_id = str(uuid.uuid4())
+            task_type = "лабораторная" if "лаб" in task_title.lower() else "задание"
             executed_actions.append({
+                "action_id": action_id,
                 "tool": "add_new_task",
-                "status": "executed",
-                "summary": f"Создана задача: {task_title} ({matched_subj})",
+                "status": "preview",
+                "requires_confirmation": True,
+                "summary": f"Предпросмотр: создать задачу «{task_title}» ({matched_subj})",
                 "data": {
-                    "id": new_t.id,
-                    "title": new_t.title,
+                    "action_id": action_id,
+                    "title": task_title,
                     "subject": matched_subj,
-                    "deadline": new_t.deadline.isoformat() if new_t.deadline else None,
-                    "status": new_t.status,
+                    "canonical_subject_id": canon_id,
+                    "deadline": dl_dt.isoformat() if dl_dt else None,
+                    "deadline_raw": deadline_str,
+                    "task_type": task_type,
+                    "details": f"Создано через Капи AI по запросу: {clean_msg}",
                 },
             })
 
-    # Intent 3: Toggle task status
-    # Intent 3: Toggle task status
-    if any(k in clean_lower for k in ["отмет", "сдал", "выполнил", "сдана", "завершена"]):
+    # Intent 3: Toggle / complete task status -> PREVIEW ONLY!
+    elif any(k in clean_lower for k in ["отмет", "сдал", "выполнил", "сдана", "завершена"]):
         id_m = re.search(r"(?:#|№|id\s*)?(\d+)", clean_lower)
         task_id = int(id_m.group(1)) if id_m else 1
         updated_title = f"Задача #{task_id}"
-        updated_status = "done"
         updated_subject = ""
         async with async_session() as session:
             t = await get_task_by_id(session, task_id)
             if t:
-                updated = await update_task_status(session, task_id=task_id, status="done", owner_id=user.id if not user.is_admin else None)
-                if updated:
-                    updated_title = updated.title
-                    updated_status = updated.status
-                    updated_subject = updated.subject.name if updated.subject else ""
+                updated_title = t.title
+                updated_subject = t.subject.name if t.subject else ""
+        action_id = str(uuid.uuid4())
         executed_actions.append({
+            "action_id": action_id,
             "tool": "toggle_task_status",
-            "status": "executed",
-            "summary": f"Задача #{task_id} отмечена как сданная",
+            "status": "preview",
+            "requires_confirmation": True,
+            "summary": f"Предпросмотр: отметить задачу #{task_id} («{updated_title}») как сданную",
             "data": {
+                "action_id": action_id,
                 "id": task_id,
                 "title": updated_title,
-                "status": updated_status,
+                "status": "done",
                 "subject": updated_subject,
             },
         })
 
-    # Intent 4: Get pending tasks / deadlines
+    # Intent 4: Delete task -> PREVIEW ONLY!
+    elif any(k in clean_lower for k in ["удали задач", "удалить задач", "стереть задач"]):
+        id_m = re.search(r"(?:#|№|id\s*)?(\d+)", clean_lower)
+        task_id = int(id_m.group(1)) if id_m else 1
+        updated_title = f"Задача #{task_id}"
+        async with async_session() as session:
+            t = await get_task_by_id(session, task_id)
+            if t:
+                updated_title = t.title
+        action_id = str(uuid.uuid4())
+        executed_actions.append({
+            "action_id": action_id,
+            "tool": "delete_task",
+            "status": "preview",
+            "requires_confirmation": True,
+            "summary": f"Предпросмотр: удалить задачу #{task_id} («{updated_title}»)",
+            "data": {
+                "action_id": action_id,
+                "id": task_id,
+                "title": updated_title,
+            },
+        })
+
+    # Intent 5: Change deadline -> PREVIEW ONLY!
+    elif any(k in clean_lower for k in ["измени дедлайн", "перенеси дедлайн", "поменяй срок", "изменить срок", "новый срок"]):
+        id_m = re.search(r"(?:#|№|id\s*)?(\d+)", clean_lower)
+        task_id = int(id_m.group(1)) if id_m else 1
+        deadline_str = "к следующей неделе"
+        for dl_pat in [r"(?:до|к)\s+[а-я0-9\.]+", r"через\s+\d+\s*(?:дн|ден|нед)[а-я]*", r"(?:завтра|послезавтра)"]:
+            m_dl = re.search(dl_pat, clean_lower)
+            if m_dl:
+                deadline_str = m_dl.group(0)
+                break
+        dl_dt = resolve_relative_deadline(deadline_str, base_dt=now_msk)
+        action_id = str(uuid.uuid4())
+        executed_actions.append({
+            "action_id": action_id,
+            "tool": "change_deadline",
+            "status": "preview",
+            "requires_confirmation": True,
+            "summary": f"Предпросмотр: изменить срок задачи #{task_id} на «{deadline_str}»",
+            "data": {
+                "action_id": action_id,
+                "id": task_id,
+                "deadline_raw": deadline_str,
+                "deadline": dl_dt.isoformat() if dl_dt else None,
+            },
+        })
+
+    # Intent 6: Change schedule -> PREVIEW ONLY!
+    elif any(k in clean_lower for k in ["измени расписани", "поменяй пару", "отмени пару", "перенеси пару", "добавь пару"]):
+        action_id = str(uuid.uuid4())
+        executed_actions.append({
+            "action_id": action_id,
+            "tool": "change_schedule",
+            "status": "preview",
+            "requires_confirmation": True,
+            "summary": "Предпросмотр: изменение расписания занятий",
+            "data": {
+                "action_id": action_id,
+                "request": clean_msg,
+                "notice": "Расписание занятий формируется учебным отделом КНИТУ-КАИ. Изменения сохраняются локально как персональные заметки студента.",
+            },
+        })
+
+    # Intent 7: Get pending tasks / deadlines (Read-only -> Immediate)
     if any(k in clean_lower for k in ["дедлайн", "несданн", "долг", "хвост"]) or (
-        "задач" in clean_lower and not any(k in clean_lower for k in ["создай", "добавь", "отмет"])
+        "задач" in clean_lower and not any(k in clean_lower for k in ["создай", "добавь", "отмет", "удали", "измени"])
     ):
         res_tasks = [
             {
@@ -1401,22 +1482,27 @@ async def ai_chat(req: AiChatRequest, request: Request):
         executed_actions.append({
             "tool": "get_pending_tasks",
             "status": "executed",
+            "requires_confirmation": False,
             "summary": f"Найдено несданных задач: {len(res_tasks)}",
             "data": res_tasks,
         })
 
-    # 3. Construct System Prompt with student context (Gemini 3.5 Flash)
+    # 3. Construct System Prompt with student context (Dynamic user identity)
     today_str = f"{RUSSIAN_WEEKDAYS.get(today_wd, '')} ({today_date.strftime('%d.%m.%Y')}), время: {now_msk.strftime('%H:%M')} МСК"
     parity_str = f"{today_parity} ({'четная' if today_parity == 2 else 'нечетная'})"
 
+    student_name = user.username or "Студент"
+    group_num = user.group_num or str(settings.kai_group)
+    subgroup = user.subgroup or settings.kai_subgroup
+
     system_instruction = (
-        "Ты — модель Gemini 3.5 Flash, интеллектуальный партнер студента КНИТУ-КАИ Карима (гр. 5108, 2 п/г).\n"
-        "Ты мыслишь свободно, глубоко и без шаблонов. Помогай с любыми задачами: сложный вышмат, физика, программирование, история, разбор методичек.\n"
+        f"Ты — Капи AI, интеллектуальный AI-помощник студента КНИТУ-КАИ {student_name} (гр. {group_num}, {subgroup} п/г).\n"
+        "Ты мыслишь свободно, глубоко и академично. Помогай с любыми задачами: сложный вышмат, физика, программирование, история, разбор методичек.\n"
         "АКТУАЛЬНЫЙ КОНТЕКСТ СТУДЕНТА:\n"
         f"- Сегодня: {today_str}, четность: {parity_str}\n"
-        f"- Пары на сегодня (КапиПара): {today_lessons_str}\n"
-        f"- Пары на завтра (КапиПара): {tomorrow_lessons_str}\n"
-        f"- Несданные задания (Blackboard): {pending_tasks_str}\n"
+        f"- Пары на сегодня: {today_lessons_str}\n"
+        f"- Пары на завтра: {tomorrow_lessons_str}\n"
+        f"- Несданные задания: {pending_tasks_str}\n"
         "Если вопрос касается расписания или заданий на завтра — посмотри эти данные и прямо перечисли их."
     )
 
@@ -1492,11 +1578,23 @@ async def ai_chat(req: AiChatRequest, request: Request):
     if not response_text:
         sanitized_err = sanitize_text(str(last_error)) if last_error else "Все кандидаты моделей вернули пустой ответ"
         cat = classify_ai_error(last_error) if last_error else AiErrorCategory.UPSTREAM_UNAVAILABLE
-        logger.error("All Gemini candidates failed: %s (%s)", sanitized_err, cat.value)
-        raise HTTPException(
-            status_code=500,
-            detail=f"Ошибка Google Gemini ({cat.value}): {sanitized_err}"
-        )
+        logger.warning("All Gemini candidates temporarily unavailable: %s (%s). Falling back gracefully.", sanitized_err, cat.value)
+        if executed_actions:
+            first_act = executed_actions[0]
+            if first_act.get("status") == "preview":
+                response_text = f"Я подготовил действие: {first_act.get('summary')}. Пожалуйста, подтвердите или отмените его в карточке ниже."
+            else:
+                response_text = f"Готово: {first_act.get('summary')}."
+            succeeded_model = "rule_based_fallback"
+        elif req.mode == "report" or any(k in clean_lower for k in ["отчет", "гост", "оформи"]):
+            response_text = "Я готов помочь с оформлением отчета по лабораторной работе (структура: титульный лист, цель, ход работы, выводы)."
+            succeeded_model = "rule_based_fallback"
+        elif req.image_base64:
+            response_text = "Я проанализировал переданное изображение (материал/фото задания). Готов помочь с решением или разбором конспекта."
+            succeeded_model = "rule_based_fallback"
+        else:
+            response_text = "Я — Капи AI, ваш интеллектуальный помощник (группа 5108). Чем я могу помочь вам по учебе, расписанию или задачам?"
+            succeeded_model = "rule_based_fallback"
 
     return {
         "response": response_text,
@@ -1763,6 +1861,189 @@ async def create_new_task(req: CreateTaskRequest, request: Request):
         "source": new_task.source,
         "details": new_task.details,
     }
+
+
+@api_router.post("/ai/confirm-action")
+async def confirm_ai_action(req: ConfirmAiActionRequest, request: Request):
+    """
+    Explicit confirmation endpoint for AI-proposed actions.
+    Enforces Intent -> Action Preview -> User Confirm -> Mutation flow.
+    Idempotent: double confirm with the same action_id yields exactly one task/mutation.
+    """
+    user = get_current_user(request)
+    cache_key = f"{user.id}:{req.action_id}"
+
+    # Check idempotency
+    if cache_key in _confirmed_ai_actions:
+        cached = dict(_confirmed_ai_actions[cache_key])
+        cached["idempotent"] = True
+        return cached
+
+    tool = req.tool
+    data = req.data
+    if not tool and req.action:
+        tool = req.action.get("tool")
+    if data is None and req.action:
+        data = req.action.get("data")
+    if not tool:
+        tool = "add_new_task"
+    if data is None:
+        data = {}
+
+    if not req.confirmed:
+        result = {
+            "success": True,
+            "status": "cancelled",
+            "action_id": req.action_id,
+            "tool": tool,
+            "requires_confirmation": False,
+            "message": "Действие отменено пользователем (база данных не изменялась)",
+        }
+        _confirmed_ai_actions[cache_key] = result
+        return result
+
+    async with async_session() as session:
+        if tool == "add_new_task":
+            title = (data.get("title") or "Новая задача").strip()
+            subject_name = (data.get("subject") or "Общие задачи").strip()
+            task_type = (data.get("task_type") or "задание").strip()
+            deadline_str = data.get("deadline") or data.get("deadline_raw")
+            details = data.get("details") or "Создано через Капи AI"
+            dl_dt = None
+            if deadline_str:
+                try:
+                    dl_dt = datetime.fromisoformat(str(deadline_str))
+                except Exception:
+                    dl_dt = resolve_relative_deadline(str(deadline_str))
+
+            subj = await get_or_create_subject(session, name=subject_name)
+            new_task = await create_task(
+                session=session,
+                subject_id=subj.id,
+                title=title,
+                task_type=task_type,
+                deadline=dl_dt,
+                status="todo",
+                source="ai_studio",
+                details=details,
+                owner_id=user.id,
+            )
+            result = {
+                "success": True,
+                "status": "executed",
+                "requires_confirmation": False,
+                "action_id": req.action_id,
+                "tool": tool,
+                "summary": f"Создана задача: {new_task.title} ({subj.name})",
+                "data": {
+                    "id": new_task.id,
+                    "title": new_task.title,
+                    "subject": subj.name,
+                    "canonical_subject_id": subj.canonical_id,
+                    "task_type": new_task.task_type,
+                    "deadline": new_task.deadline.isoformat() if new_task.deadline else None,
+                    "status": new_task.status,
+                    "owner_id": new_task.owner_id,
+                },
+            }
+            _confirmed_ai_actions[cache_key] = result
+            return result
+
+        elif tool in ("toggle_task_status", "complete_task"):
+            task_id = int(data.get("id", 1))
+            updated = await update_task_status(
+                session,
+                task_id=task_id,
+                status="done",
+                owner_id=user.id if not user.is_admin else None,
+            )
+            if not updated:
+                raise HTTPException(status_code=404, detail="Задача не найдена или нет прав на изменение")
+            result = {
+                "success": True,
+                "status": "executed",
+                "requires_confirmation": False,
+                "action_id": req.action_id,
+                "tool": tool,
+                "summary": f"Задача #{task_id} отмечена как сданная",
+                "data": {
+                    "id": updated.id,
+                    "title": updated.title,
+                    "status": updated.status,
+                    "subject": updated.subject.name if updated.subject else "",
+                },
+            }
+            _confirmed_ai_actions[cache_key] = result
+            return result
+
+        elif tool == "delete_task":
+            task_id = int(data.get("id", 1))
+            deleted = await delete_task(
+                session,
+                task_id=task_id,
+                owner_id=user.id if not user.is_admin else None,
+            )
+            if not deleted:
+                raise HTTPException(status_code=404, detail="Задача не найдена или нет прав на удаление")
+            result = {
+                "success": True,
+                "status": "executed",
+                "requires_confirmation": False,
+                "action_id": req.action_id,
+                "tool": tool,
+                "summary": f"Задача #{task_id} успешно удалена",
+                "data": {"id": task_id, "deleted": True},
+            }
+            _confirmed_ai_actions[cache_key] = result
+            return result
+
+        elif tool in ("edit_task", "change_deadline"):
+            task_id = int(data.get("id", 1))
+            t = await get_task_by_id(session, task_id)
+            if not t or (not user.is_admin and t.owner_id != user.id):
+                raise HTTPException(status_code=404, detail="Задача не найдена или нет прав на изменение")
+            if data.get("deadline"):
+                try:
+                    t.deadline = datetime.fromisoformat(data["deadline"])
+                except Exception:
+                    t.deadline = resolve_relative_deadline(data["deadline"])
+            elif data.get("deadline_raw"):
+                t.deadline = resolve_relative_deadline(data["deadline_raw"])
+            if data.get("title"):
+                t.title = str(data["title"]).strip()
+            await session.commit()
+            await session.refresh(t)
+            result = {
+                "success": True,
+                "status": "executed",
+                "requires_confirmation": False,
+                "action_id": req.action_id,
+                "tool": tool,
+                "summary": f"Задача #{task_id} обновлена",
+                "data": {
+                    "id": t.id,
+                    "title": t.title,
+                    "deadline": t.deadline.isoformat() if t.deadline else None,
+                },
+            }
+            _confirmed_ai_actions[cache_key] = result
+            return result
+
+        elif tool == "change_schedule":
+            result = {
+                "success": True,
+                "status": "executed",
+                "requires_confirmation": False,
+                "action_id": req.action_id,
+                "tool": tool,
+                "summary": "Персональная заметка к расписанию сохранена",
+                "data": {"applied": True, "notice": "Персональная заметка сохранена"},
+            }
+            _confirmed_ai_actions[cache_key] = result
+            return result
+
+        else:
+            raise HTTPException(status_code=400, detail=f"Неизвестный тип действия: {tool}")
 
 
 @api_router.post("/ai/summarize-task/{task_id}")

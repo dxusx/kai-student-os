@@ -94,6 +94,12 @@ async function setCachedUserData(key, data) {
   });
 }
 
+function getAiHistoryKey() {
+  const userKey = getCurrentUserKey();
+  const cleanId = userKey.replace(/^user_/, '');
+  return `kai_ai_history:${cleanId || 'default'}`;
+}
+
 function clearAuthToken() {
   localStorage.removeItem(AUTH_TOKEN_KEY);
   document.cookie = 'kai_app_auth_token=; path=/; max-age=0; SameSite=Strict';
@@ -102,6 +108,26 @@ function clearAuthToken() {
     state.subjects = [];
     state.todaySchedule = [];
     state.stats = null;
+    state.aiChatHistory = [];
+  }
+  const messagesContainer = document.getElementById('ai-chat-messages');
+  if (messagesContainer) {
+    messagesContainer.innerHTML = `
+      <div class="ai-msg-bubble ai-msg-assistant glass-card">
+        <div class="ai-msg-avatar nothing-avatar">
+          <span class="nothing-dot-inner"></span>
+        </div>
+        <div class="ai-msg-content">
+          <div class="ai-msg-header">
+            <span class="ai-msg-author">Капи AI</span>
+          </div>
+          <div class="ai-msg-body">
+            <p>Привет! Я Капи AI — твой интеллектуальный партнер и помощник студента КАИ (гр. 5108, 2 п/г).</p>
+            <p>Задавай любые вопросы по вышмату, физике, коду, расписанию или заданиям на завтра.</p>
+          </div>
+        </div>
+      </div>
+    `;
   }
 }
 
@@ -297,10 +323,45 @@ function setupAuthModalEvents() {
           throw new Error('Ошибка сервера: ' + res.status);
         }
 
-        setAuthToken(val);
+        let authTokenToStore = val;
+        // If not a signed user token (not 3 parts), exchange app gateway token for signed student token
+        if (val.split('.').length !== 3) {
+          try {
+            const tokenRes = await fetch('/api/auth/token', {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${val}`,
+                'X-App-Token': val,
+              },
+              body: JSON.stringify({
+                user_id: 'student_5108',
+                username: 'student_5108',
+                role: 'student',
+                group_num: '5108',
+                subgroup: 2
+              })
+            });
+            if (tokenRes.ok) {
+              const tokenData = await tokenRes.json();
+              if (tokenData.access_token) {
+                authTokenToStore = tokenData.access_token;
+              }
+            }
+          } catch (_) {}
+        }
+
+        setAuthToken(authTokenToStore);
         hideAuthModal();
         showToast('Успешный вход в систему');
         await initAppData();
+
+        try {
+          const savedChat = localStorage.getItem(getAiHistoryKey());
+          state.aiChatHistory = savedChat ? JSON.parse(savedChat) : [];
+        } catch (_) {
+          state.aiChatHistory = [];
+        }
 
       } catch (err) {
         console.error('Auth verification error:', err);
@@ -1713,6 +1774,78 @@ function renderMarkdown(md) {
 
 function renderActionWidget(action) {
   if (!action) return '';
+
+  // 1. Action Preview requiring confirmation
+  if (action.status === 'preview' || action.requires_confirmation) {
+    const actId = escapeHtml(action.action_id || ('act_' + Math.random().toString(36).slice(2)));
+    const tool = escapeHtml(action.tool || 'mutation');
+    const d = action.data || {};
+
+    let titlePreview = '';
+    let detailsHtml = '';
+
+    if (action.tool === 'add_new_task') {
+      titlePreview = `Создание задачи: «${escapeHtml(d.title || 'Новая задача')}»`;
+      detailsHtml = `
+        <div class="action-task-preview-info">
+          <div><strong>Предмет:</strong> ${escapeHtml(d.subject || 'Общие задачи')}</div>
+          ${d.deadline_raw || d.deadline ? `<div><strong>Срок:</strong> ${escapeHtml(d.deadline_raw || d.deadline)}</div>` : ''}
+          ${d.task_type ? `<div><strong>Тип:</strong> ${escapeHtml(d.task_type)}</div>` : ''}
+        </div>
+      `;
+    } else if (action.tool === 'toggle_task_status') {
+      titlePreview = `Отметка о сдаче: задача #${escapeHtml(String(d.id || ''))}`;
+      detailsHtml = `
+        <div class="action-task-preview-info">
+          <div><strong>Название:</strong> ${escapeHtml(d.title || 'Задача')}</div>
+          <div><strong>Новый статус:</strong> Сдано (done)</div>
+        </div>
+      `;
+    } else if (action.tool === 'delete_task') {
+      titlePreview = `Удаление задачи #${escapeHtml(String(d.id || ''))}`;
+      detailsHtml = `
+        <div class="action-task-preview-info">
+          <div><strong>Название:</strong> ${escapeHtml(d.title || 'Задача')}</div>
+        </div>
+      `;
+    } else if (action.tool === 'change_deadline') {
+      titlePreview = `Изменение срока задачи #${escapeHtml(String(d.id || ''))}`;
+      detailsHtml = `
+        <div class="action-task-preview-info">
+          <div><strong>Новый срок:</strong> ${escapeHtml(d.deadline_raw || d.deadline || '—')}</div>
+        </div>
+      `;
+    } else {
+      titlePreview = escapeHtml(action.summary || 'Подтверждение действия');
+      detailsHtml = `<div class="action-task-preview-info">${escapeHtml(d.notice || '')}</div>`;
+    }
+
+    return `
+      <div class="action-widget-card glass-card action-card-preview" id="action-widget-${actId}">
+        <div class="action-widget-header">
+          <span class="action-widget-badge">⚠️ Требуется подтверждение</span>
+          <span class="action-widget-tag">Предпросмотр</span>
+        </div>
+        <div class="action-widget-body">
+          <div class="action-task-title"><strong>${titlePreview}</strong></div>
+          ${detailsHtml}
+        </div>
+        <div class="action-widget-footer action-footer-confirm-cluster" style="display: flex; gap: 8px; margin-top: 10px;">
+          <button class="action-widget-btn action-btn-confirm glass-control" onclick="handleAiActionConfirm('${actId}', '${tool}', this)">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"></polyline></svg>
+            <span>Подтвердить</span>
+          </button>
+          <button class="action-widget-btn action-btn-cancel glass-control" onclick="handleAiActionCancel('${actId}', '${tool}', this)">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+            <span>Отменить</span>
+          </button>
+        </div>
+        <script type="application/json" class="action-raw-data">${JSON.stringify(action.data || {})}</script>
+      </div>
+    `;
+  }
+
+  // 2. Read-only or Executed Actions
   if (action.tool === 'get_schedule') {
     const d = action.data || {};
     const lessons = d.lessons || [];
@@ -1819,6 +1952,74 @@ function renderActionWidget(action) {
   return '';
 }
 
+window.handleAiActionConfirm = async function(actionId, tool, btnEl) {
+  const card = document.getElementById(`action-widget-${actionId}`);
+  let data = {};
+  if (card) {
+    const rawScript = card.querySelector('.action-raw-data');
+    if (rawScript) {
+      try { data = JSON.parse(rawScript.textContent); } catch (_) {}
+    }
+  }
+  if (btnEl) btnEl.disabled = true;
+  try {
+    const res = await apiFetch(API_BASE + '/api/ai/confirm-action', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action_id: actionId, tool: tool, data: data, confirmed: true })
+    });
+    if (!res.ok) throw new Error('Ошибка подтверждения действия');
+    const result = await res.json();
+    if (card) {
+      card.classList.remove('action-card-preview');
+      card.classList.add('action-card-success');
+      card.innerHTML = `
+        <div class="action-widget-header">
+          <span class="action-widget-badge">✅ Действие выполнено</span>
+          <span class="action-widget-tag">${escapeHtml(tool)}</span>
+        </div>
+        <div class="action-widget-body">
+          <strong>${escapeHtml(result.summary || 'Изменение успешно сохранено')}</strong>
+        </div>
+        <div class="action-widget-footer">
+          <button class="action-widget-btn glass-control" onclick="switchTab('tasks')">
+            <span>Перейти к заданиям</span>
+          </button>
+        </div>
+      `;
+    }
+    showToast('Действие выполнено и сохранено');
+    if (typeof loadTasks === 'function') loadTasks();
+  } catch (err) {
+    showToast(err.message || 'Ошибка подтверждения');
+    if (btnEl) btnEl.disabled = false;
+  }
+};
+
+window.handleAiActionCancel = async function(actionId, tool, btnEl) {
+  const card = document.getElementById(`action-widget-${actionId}`);
+  if (btnEl) btnEl.disabled = true;
+  try {
+    await apiFetch(API_BASE + '/api/ai/confirm-action', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action_id: actionId, tool: tool, data: {}, confirmed: false })
+    }).catch(() => {});
+    if (card) {
+      card.classList.remove('action-card-preview');
+      card.innerHTML = `
+        <div class="action-widget-header">
+          <span class="action-widget-badge" style="color: var(--text-tertiary);">❌ Действие отменено</span>
+        </div>
+        <div class="action-widget-body" style="color: var(--text-secondary); font-size: 0.82rem; padding: 6px 0;">
+          Изменение не было внесено в базу данных.
+        </div>
+      `;
+    }
+    showToast('Действие отменено');
+  } catch (_) {}
+};
+
 function setupGeminiEvents() {
   const geminiText = document.getElementById('gemini-text-input');
   const geminiMicBtn = document.getElementById('gemini-mic-btn');
@@ -1833,10 +2034,10 @@ function setupGeminiEvents() {
   const aiRemoveAttachBtn = document.getElementById('ai-remove-attachment-btn');
 
   let attachedImageBase64 = null;
-  state.aiStudioMode = localStorage.getItem('kai_ai_studio_mode') || 'tutor';
+  state.aiStudioMode = localStorage.getItem('kai_ai_studio_mode') || 'universal';
   try {
-    const savedChat = localStorage.getItem('kai_capypara_ai_chat_history');
-    if (savedChat) state.aiChatHistory = JSON.parse(savedChat);
+    const savedChat = localStorage.getItem(getAiHistoryKey());
+    state.aiChatHistory = savedChat ? JSON.parse(savedChat) : [];
   } catch (e) {
     state.aiChatHistory = [];
   }
@@ -2071,7 +2272,7 @@ function setupGeminiEvents() {
           </div>
           <div class="ai-msg-content">
             <div class="ai-msg-header">
-              <span class="ai-msg-author">GEMINI 3.5 FLASH</span>
+              <span class="ai-msg-author">Капи AI</span>
             </div>
             <div class="ai-msg-body markdown-rendered">
               ${renderMarkdown(data.response)}
@@ -2088,7 +2289,7 @@ function setupGeminiEvents() {
       state.aiChatHistory.push({ role: 'model', content: data.response });
       if (state.aiChatHistory.length > 20) state.aiChatHistory = state.aiChatHistory.slice(-20);
       try {
-        localStorage.setItem('kai_capypara_ai_chat_history', JSON.stringify(state.aiChatHistory));
+        localStorage.setItem(getAiHistoryKey(), JSON.stringify(state.aiChatHistory));
       } catch (e) {}
 
     } catch (err) {

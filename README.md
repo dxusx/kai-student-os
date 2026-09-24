@@ -5,7 +5,7 @@
 [![Python](https://img.shields.io/badge/Python-3.11%2B-3776AB?style=for-the-badge&logo=python&logoColor=white)](https://www.python.org/)
 [![FastAPI](https://img.shields.io/badge/FastAPI-0.110%2B-009688?style=for-the-badge&logo=fastapi&logoColor=white)](https://fastapi.tiangolo.com/)
 [![Aiogram](https://img.shields.io/badge/Aiogram-3.13%2B-2CA5E0?style=for-the-badge&logo=telegram&logoColor=white)](https://docs.aiogram.dev/)
-[![Google Gemini](https://img.shields.io/badge/Google%20Gemini-3.8%20Flash-8E75B2?style=for-the-badge&logo=google&logoColor=white)](https://ai.google.dev/)
+[![Google Gemini](https://img.shields.io/badge/Google%20Gemini-3.5%20Flash%20%7C%203.8%20Fallback-8E75B2?style=for-the-badge&logo=google&logoColor=white)](https://ai.google.dev/)
 [![Playwright](https://img.shields.io/badge/Playwright-1.40%2B-2EAD33?style=for-the-badge&logo=playwright&logoColor=white)](https://playwright.dev/)
 [![SQLite](https://img.shields.io/badge/SQLite-SQLAlchemy%20Async-003B57?style=for-the-badge&logo=sqlite&logoColor=white)](https://www.sqlalchemy.org/)
 [![PWA](https://img.shields.io/badge/PWA-Ready%20for%20Android-5A0FC8?style=for-the-badge&logo=pwa&logoColor=white)](https://web.dev/progressive-web-apps/)
@@ -34,11 +34,11 @@
 
 ## ✨ Ключевые возможности
 
-### 1. ⚡ Bento-Grid Dashboard (Google Material You / Linear)
+### 1. ⚡ Bento-Grid Dashboard (Nothing OS / Linear Style)
 - **Live-индикатор текущей пары**: в реальном времени определяет текущую пару или перемену, отображает прогресс-бар оставшегося времени, здание и аудиторию.
 - **Учет расписания звонков КАИ**: автоматический расчет таймингов (1 пара: 08:00–09:30, 2 пара: 09:40–11:10 и т.д.).
 - **Интерактивные кольца прогресса (Progress Rings)**: наглядный процент сданных лабораторных работ семестра с разбивкой по долгам и закрытым работам.
-- **PWA-автономность**: полноценная установка на Android / iOS как нативное приложение, поддержка Service Worker и локального кэширования.
+- **PWA-автономность и изоляция данных**: полноценная установка на Android / iOS как PWA; Service Worker (`sw.js`) кэширует статические ресурсы интерфейса для мгновенного запуска offline, а персональные задачи, расписание и история диалогов AI (`kai_ai_history:{user_id}`) строго изолированы для каждой учетной записи.
 
 ### 2. 📅 Интеллектуальный парсер расписания КАИ
 - Живой опрос публичного REST API `kai.ru/raspisanie`.
@@ -53,18 +53,22 @@
 - **Защищенное скачивание через бэкенд (`/api/tasks/{task_id}/download`)**: авторизация исключительно через заголовок `Authorization: Bearer <token>`, `X-App-Token` или сессионную cookie (`kai_app_auth_token`). Токены в URL (`?token=`) строго запрещены (401) для предотвращения утечки в access-логи; проверка прав владения задачей (403), сандбоксинг хранилища вложений (`data/attachments`) и надежная защита от Path Traversal (`../`, `..\`, `%2e%2e`).
 - **Smart Split**: автоматическое разделение контента на **«Сдачу работ»** (лабораторные, практики, расчеты) и **«Библиотеку методичек»** (программы дисциплин, ФОС, лекции, вопросы к зачету).
 
-### 4. 🤖 Google AI Studio 2.0 на базе Gemini & Function Calling
-- **Мультирежимная рабочая среда (Studio Workspace)**:
-  - 🎓 **Репетитор**: глубокое объяснение сложных тем, формул и теории с форматированием Markdown и подсветкой синтаксиса кода.
-  - ⚡ **Органайзер (Function Calling / Agentic Tools)**: автономное выполнение действий с данными студента — чтение расписания на день/неделю (`get_schedule`), анализ горящих дедлайнов (`get_pending_tasks`), автоматическое создание задач (`add_new_task`).
-  - 📝 **Генератор шпаргалок**: моментальный выжим сути лабораторной работы, требований и порядка действий.
-  - 👁️ **Vision & Multimodal**: анализ фотографий рукописных конспектов, методичек и заданий с доски.
-- **Ультра-минималистичная плавающая капсула (Floating Capsule Composer)**:
-  - Компактный эргономичный док в стиле современных мобильных ОС с кнопкой действий `+` (вложения фото и голосовой ввод Web Speech API 🎙️), авто-раскрывающейся кнопкой `[📋 В задачи]` и отправкой в диалог `[🚀]`.
-- **Multi-Model Fallback**: автоматический каскадный переход при высокой нагрузке (`gemini-2.5-flash` ➔ `gemini-2.5-flash-lite`), гарантирующий аптайм 99.9%.
+### 4. 🤖 Капи AI на базе Gemini 3.5 Flash & Action Confirmation
+- **Интеллектуальный ассистент студента (Капи AI · группа 5108)**:
+  - 🎓 **Академический тьютор**: глубокое объяснение сложных тем, физико-математических формул и теории с форматированием Markdown, KaTeX и подсветкой синтаксиса кода.
+  - ⚡ **Органайзер и Function Calling**: автономный сбор контекста — чтение расписания на день/неделю (`get_schedule`), анализ горящих дедлайнов (`get_pending_tasks`), подготовка задач.
+  - 📝 **Генератор шпаргалок к лабораторным**: емкая выжимка сути работы, требований, списка «что взять с собой» и пошагового алгоритма.
+  - 👁️ **Vision & Multimodal**: анализ фото конспектов, методичек и рукописных задач с доски.
+- **Двухфазное подтверждение действий (Safety Action Previews)**:
+  - Никакой скрытой записи в БД: все мутирующие операции (создание, закрытие, редактирование, удаление задачи, перенос дедлайна) возвращают карточку предпросмотра (`requires_confirmation: True`). Запись в БД происходит только после явного нажатия кнопки «Подтвердить». Read-only запросы выполняются моментально.
+- **Минималистичная плавающая капсула (Floating Capsule Composer)**:
+  - Компактный эргономичный док Nothing OS с кнопкой вложений фото, голосовым вводом Web Speech API 🎙️ и быстрым формированием задач.
+- **Multi-Model Fallback & Честная производительность**:
+  - Основная модель — `gemini-3.5-flash` с динамическим fallback на `gemini-3.8-flash`.
+  - Реальная задержка генерации ответа модели с включенным low thinking budget составляет 3–8 секунд; повторные запросы шпаргалок к лабораторным отдаются моментально (<50 мс) благодаря серверному кэшу `DeterministicAiCache`.
 - **✨ Разбор лабораторной (Cheat-Sheet)**:
-  - Генерирует емкую шпаргалку для студента: **Суть работы** (в 2 предложениях), **Что взять с собой** (титульник, отчет, флешка, калькулятор) и **Порядок действий** (пошаговый алгоритм выполнения).
-  - Результаты детерминированно кэшируются на сервере (`DeterministicAiCache`) для моментального повторного открытия.
+  - Структурированный разбор: **Суть работы** (в 2 предложениях), **Что взять с собой** (титульник, отчет, флешка, калькулятор) и **Порядок действий** (пошаговый алгоритм выполнения).
+  - Детерминированное кэширование на сервере (`DeterministicAiCache`) для моментального повторного открытия.
 
 ### 5. 📬 Proactive Alert System (Telegram-бот на Aiogram 3)
 - **Утренний брифинг (07:30)**: маршрутный лист на день с номерами корпусов, аудиторий, преподавателями и списком того, что нужно взять с собой.
@@ -81,7 +85,7 @@ flowchart TD
     subgraph External ["Внешние сервисы и источники данных"]
         KAI["КАИ Расписание API<br/>(kai.ru)"]
         BB["Blackboard Learn<br/>(bb.kai.ru)"]
-        GEMINI["Google Gemini AI<br/>(gemini-3.8-flash)"]
+        GEMINI["Google Gemini AI<br/>(gemini-3.5-flash / fallback 3.8)"]
         TG_API["Telegram Bot API"]
     end
 
@@ -303,7 +307,7 @@ sudo certbot --nginx -d kai.yourdomain.com
 |---|---|
 | **Backend Framework** | [FastAPI](https://fastapi.tiangolo.com/), [Uvicorn](https://www.uvicorn.org/), ASGI |
 | **Telegram Bot** | [Aiogram 3.x](https://docs.aiogram.dev/), Telegram Bot API, Async Event Driven |
-| **Artificial Intelligence** | [Google GenAI SDK](https://ai.google.dev/), Gemini 3.8 Flash, Structured Pydantic Outputs |
+| **Artificial Intelligence** | [Google GenAI SDK](https://ai.google.dev/), Gemini 3.5 Flash (Fallback: Gemini 3.8 Flash), Agentic Tools & Structured Prompts |
 | **Web Scraping** | [Playwright Chromium](https://playwright.dev/python/), BeautifulSoup4, aiohttp |
 | **Database & ORM** | [SQLAlchemy 2.0](https://www.sqlalchemy.org/) (Async Engine), [aiosqlite](https://github.com/omnilib/aiosqlite), SQLite |
 | **Scheduler** | [APScheduler 3.x](https://apscheduler.readthedocs.io/) (AsyncIOScheduler) |

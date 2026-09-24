@@ -17,6 +17,7 @@ class Subject(Base):
     __tablename__ = "subjects"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    canonical_id: Mapped[Optional[str]] = mapped_column(String(50), index=True, nullable=True, default=None)
     name: Mapped[str] = mapped_column(String(255), unique=True, index=True, nullable=False)
     teacher: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
 

@@ -3011,31 +3011,49 @@ button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visib
 .liquid-bottom-dock,
 .bottom-nav {
   position: fixed;
-  bottom: 0;
-  left: 0;
-  right: 0;
-  width: 100%;
-  max-width: 100%;
-  margin: 0;
+  bottom: calc(14px + env(safe-area-inset-bottom, 0px));
+  left: 50%;
+  transform: translateX(-50%);
+  width: calc(100% - 28px);
+  max-width: 520px;
+  margin-inline: auto;
   z-index: 60;
   display: flex;
   align-items: center;
   justify-content: space-around;
-  gap: 0;
-  padding: 8px 12px calc(8px + env(safe-area-inset-bottom, 0px)) 12px;
-  border-radius: 0;
+  gap: 2px;
+  padding: 8px 12px;
+  border-radius: 28px;
   background: #0c0d0e;
-  border-top: 1px solid #1f2125;
-  box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.4);
+  border: 1px solid #1f2125;
+  box-shadow: 0 12px 36px rgba(0, 0, 0, 0.55), 0 2px 8px rgba(0, 0, 0, 0.35);
   box-sizing: border-box;
   transition: transform var(--duration-normal) var(--ease-apple), opacity var(--duration-fast) var(--ease-apple);
 }
 
+@supports ((-webkit-backdrop-filter: blur(20px)) or (backdrop-filter: blur(20px))) {
+  .liquid-bottom-dock,
+  .bottom-nav {
+    background: rgba(12, 13, 14, 0.84);
+    -webkit-backdrop-filter: blur(20px) saturate(180%);
+    backdrop-filter: blur(20px) saturate(180%);
+  }
+}
+
 [data-theme="light"] .liquid-bottom-dock,
 [data-theme="light"] .bottom-nav {
-  background: rgba(255, 255, 255, 0.82);
-  border: 1px solid rgba(0, 0, 0, 0.08);
-  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.1), inset 0 1px 0 rgba(255, 255, 255, 0.8);
+  background: rgba(255, 255, 255, 0.94);
+  border: 1px solid rgba(0, 0, 0, 0.1);
+  box-shadow: 0 12px 36px rgba(0, 0, 0, 0.12), 0 2px 8px rgba(0, 0, 0, 0.06);
+}
+
+@supports ((-webkit-backdrop-filter: blur(20px)) or (backdrop-filter: blur(20px))) {
+  [data-theme="light"] .liquid-bottom-dock,
+  [data-theme="light"] .bottom-nav {
+    background: rgba(255, 255, 255, 0.82);
+    -webkit-backdrop-filter: blur(20px) saturate(180%);
+    backdrop-filter: blur(20px) saturate(180%);
+  }
 }
 
 .dock-tab {
@@ -3184,6 +3202,28 @@ button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visib
 .liquid-modal-backdrop.active .task-detail-sheet {
   opacity: 1;
   transform: translateY(0) scale(1);
+}
+
+@supports ((-webkit-backdrop-filter: blur(20px)) or (backdrop-filter: blur(20px))) {
+  .liquid-modal-sheet,
+  .bottom-sheet,
+  .task-detail-sheet,
+  .liquid-auth-card {
+    background: rgba(14, 15, 17, 0.88);
+    -webkit-backdrop-filter: blur(24px) saturate(180%);
+    backdrop-filter: blur(24px) saturate(180%);
+    border-color: rgba(255, 255, 255, 0.12);
+  }
+
+  [data-theme="light"] .liquid-modal-sheet,
+  [data-theme="light"] .bottom-sheet,
+  [data-theme="light"] .task-detail-sheet,
+  [data-theme="light"] .liquid-auth-card {
+    background: rgba(255, 255, 255, 0.88);
+    -webkit-backdrop-filter: blur(24px) saturate(180%);
+    backdrop-filter: blur(24px) saturate(180%);
+    border-color: rgba(0, 0, 0, 0.12);
+  }
 }
 
 .sheet-pill-handle, .sheet-drag-handle {
@@ -3627,6 +3667,24 @@ button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visib
 .liquid-toast.show, .toast.show {
   transform: translate(-50%, 0);
   opacity: 1;
+}
+
+@supports ((-webkit-backdrop-filter: blur(20px)) or (backdrop-filter: blur(20px))) {
+  .liquid-toast,
+  .toast {
+    background: rgba(20, 22, 26, 0.88);
+    -webkit-backdrop-filter: blur(20px) saturate(180%);
+    backdrop-filter: blur(20px) saturate(180%);
+    border-color: rgba(255, 255, 255, 0.15);
+  }
+
+  [data-theme="light"] .liquid-toast,
+  [data-theme="light"] .toast {
+    background: rgba(255, 255, 255, 0.88);
+    -webkit-backdrop-filter: blur(20px) saturate(180%);
+    backdrop-filter: blur(20px) saturate(180%);
+    border-color: rgba(0, 0, 0, 0.12);
+  }
 }
 
 /* Skeletons */
@@ -4364,17 +4422,32 @@ button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visib
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 14px 18px;
+  padding: 12px 18px;
   border-radius: 14px;
   margin-bottom: 12px;
   border: 1px solid #1f2125;
   background: #0c0d0e;
 }
 
+@supports ((-webkit-backdrop-filter: blur(20px)) or (backdrop-filter: blur(20px))) {
+  .ai-studio-top-bar,
+  .nothing-top-bar {
+    background: rgba(12, 13, 14, 0.82);
+    -webkit-backdrop-filter: blur(20px) saturate(180%);
+    backdrop-filter: blur(20px) saturate(180%);
+  }
+}
+
 .nothing-ai-brand {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 12px;
+}
+
+.nothing-ai-text-group {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
 }
 
 .nothing-status-dot {
@@ -4394,12 +4467,19 @@ button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visib
 }
 
 .nothing-ai-title {
-  font-family: var(--font-mono);
-  font-size: 0.84rem;
+  font-family: var(--font-sans);
+  font-size: 0.95rem;
   font-weight: 700;
-  letter-spacing: 0.08em;
+  letter-spacing: -0.01em;
   color: #ffffff;
-  text-transform: uppercase;
+}
+
+.nothing-ai-sub {
+  font-family: var(--font-mono);
+  font-size: 0.68rem;
+  font-weight: 500;
+  color: #737373;
+  letter-spacing: 0.02em;
 }
 
 .nothing-avatar {
@@ -4766,6 +4846,65 @@ button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visib
   transform: translateY(-1px);
 }
 
+.action-card-preview {
+  border-color: rgba(255, 179, 0, 0.4) !important;
+  background: #14130d !important;
+}
+
+.action-card-preview .action-widget-badge {
+  color: #ffb300 !important;
+  font-weight: 600;
+}
+
+.action-card-preview .action-task-preview-info {
+  margin-top: 6px;
+  font-size: 0.8rem;
+  color: var(--text-secondary);
+  line-height: 1.5;
+}
+
+.action-footer-confirm-cluster {
+  display: flex;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.action-btn-confirm {
+  background: #eb0029 !important;
+  color: #ffffff !important;
+  border: none !important;
+  font-weight: 600;
+  padding: 8px 14px;
+  border-radius: 10px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+  transition: opacity 0.2s ease;
+}
+
+.action-btn-confirm:hover {
+  opacity: 0.9;
+}
+
+.action-btn-cancel {
+  background: #1f2125 !important;
+  color: #a0a0a0 !important;
+  border: 1px solid #28282c !important;
+  font-weight: 500;
+  padding: 8px 14px;
+  border-radius: 10px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+  transition: opacity 0.2s ease;
+}
+
+.action-btn-cancel:hover {
+  opacity: 0.9;
+}
+
 /* ==========================================================================
    AI STUDIO APPLE FLOATING GLASS CARD COMPOSER
    ========================================================================== */
@@ -4787,6 +4926,15 @@ button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visib
   gap: 10px;
   box-sizing: border-box;
   transition: all 0.2s ease;
+}
+
+@supports ((-webkit-backdrop-filter: blur(20px)) or (backdrop-filter: blur(20px))) {
+  .ai-composer,
+  .ai-composer-dock {
+    background: rgba(17, 18, 21, 0.85);
+    -webkit-backdrop-filter: blur(20px) saturate(180%);
+    backdrop-filter: blur(20px) saturate(180%);
+  }
 }
 
 body.keyboard-active .ai-composer,

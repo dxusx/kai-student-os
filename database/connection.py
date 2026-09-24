@@ -35,6 +35,13 @@ async def init_db() -> None:
             if columns:
                 cursor.execute("CREATE INDEX IF NOT EXISTS ix_tasks_owner_id ON tasks (owner_id)")
 
+            cursor.execute("PRAGMA table_info(subjects)")
+            sub_columns = [row[1] for row in cursor.fetchall()]
+            if sub_columns and "canonical_id" not in sub_columns:
+                cursor.execute("ALTER TABLE subjects ADD COLUMN canonical_id VARCHAR(50)")
+            if sub_columns:
+                cursor.execute("CREATE INDEX IF NOT EXISTS ix_subjects_canonical_id ON subjects (canonical_id)")
+
         await conn.run_sync(_migrate_schema)
 
 

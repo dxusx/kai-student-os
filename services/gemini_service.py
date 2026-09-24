@@ -28,6 +28,7 @@ except ImportError:
     types = None  # type: ignore
 
 from core.config import settings
+from core.subjects import resolve_canonical_subject
 
 logger = logging.getLogger("kai_assistant.gemini")
 
@@ -577,40 +578,8 @@ class GeminiService:
         text_lower = text.lower()
         now_msk = datetime.now(MSK_TZ)
 
-        # 1. Match subject
-        matched_subject = None
-        for s in available_subjects:
-            s_low = s.lower()
-            stem = s_low[:4] if len(s_low) >= 4 else s_low
-            if stem in text_lower or (len(s_low) > 3 and s_low in text_lower):
-                matched_subject = s
-                break
-
-        if not matched_subject:
-            # Common abbreviations / synonyms
-            if any(k in text_lower for k in ["вышмат", "матан", "матем", "алгебр"]):
-                for s in available_subjects:
-                    if "матем" in s.lower():
-                        matched_subject = s
-                        break
-            elif "физик" in text_lower:
-                for s in available_subjects:
-                    if "физик" in s.lower():
-                        matched_subject = s
-                        break
-            elif any(k in text_lower for k in ["орг", "государственност", "росси"]):
-                for s in available_subjects:
-                    if any(sub in s.lower() for sub in ["орг", "государственност"]):
-                        matched_subject = s
-                        break
-            elif any(k in text_lower for k in ["информ", "програм"]):
-                for s in available_subjects:
-                    if any(sub in s.lower() for sub in ["информ", "програм"]):
-                        matched_subject = s
-                        break
-
-        if not matched_subject:
-            matched_subject = available_subjects[0] if available_subjects else "Общие задачи"
+        # 1. Match subject via canonical ID and aliases first; fuzzy matching only as fallback
+        canonical_id, matched_subject = resolve_canonical_subject(text, available_subjects)
 
         # 2. Match task type
         task_type = "задание"
@@ -697,6 +666,7 @@ class GeminiService:
             requirements = "Подготовить слайды презентации"
 
         return {
+            "canonical_subject_id": canonical_id,
             "subject": matched_subject,
             "title": title,
             "task_type": task_type,
@@ -757,6 +727,9 @@ class GeminiService:
         try:
             parsed, metadata = self._call_with_fallback(contents=prompt, response_schema=ParsedTask)
             res = parsed.model_dump()
+            canon_id, canon_subject = resolve_canonical_subject(res.get("subject", ""), available_subjects)
+            res["canonical_subject_id"] = canon_id
+            res["subject"] = canon_subject
             if not res.get("deadline_iso") and res.get("deadline_raw"):
                 resolved = resolve_relative_deadline(res["deadline_raw"], base_dt=now_msk)
                 if resolved:
