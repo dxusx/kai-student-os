@@ -1745,9 +1745,18 @@ async def ai_chat(req: AiChatRequest, request: Request):
 
     contents.append(types.Content(role="user", parts=last_parts))
 
-    candidate_models = ["gemini-3.5-flash", "gemini-3.8-flash"]
-    if settings.gemini_model and settings.gemini_model not in candidate_models:
-        candidate_models.insert(0, settings.gemini_model)
+    candidate_models = [
+        settings.gemini_model or "gemini-3.6-flash",
+        "gemini-3.6-flash",
+        "gemini-3.7-flash",
+        "gemini-3.5-flash-lite",
+        "gemini-2.5-flash-lite",
+        "gemini-3.5-flash",
+        "gemini-3.8-flash",
+    ]
+    # Deduplicate while preserving order
+    seen_models = set()
+    candidate_models = [m for m in candidate_models if not (m in seen_models or seen_models.add(m))]
 
     response_text = ""
     succeeded_model = candidate_models[0]
@@ -1778,15 +1787,19 @@ async def ai_chat(req: AiChatRequest, request: Request):
                 logger.warning("Gemini model %s error (attempt %d): %s", m_name, attempt + 1, sanitize_text(str(e)))
                 if "404" in err_s or "not_found" in err_s or "unregistered" in err_s:
                     break
+                if "429" in err_s or "quota" in err_s or "resource_exhausted" in err_s:
+                    # Model quota reached — immediately try next candidate model
+                    break
+                if "503" in err_s or "unavailable" in err_s:
+                    # Model experiencing demand spike — try next candidate model
+                    break
                 if "disconnected" in err_s or "connection" in err_s or "broken" in err_s:
                     try:
                         http_opts = types.HttpOptions(base_url=settings.gemini_base_url) if settings.gemini_base_url else None
                         gemini_svc._client = genai.Client(api_key=gemini_svc.api_key, http_options=http_opts)
                     except Exception as reinit_err:
                         logger.warning("Failed to refresh Gemini client: %s", reinit_err)
-                    await asyncio.sleep(1.0)
-                elif "503" in err_s or "unavailable" in err_s or "429" in err_s:
-                    await asyncio.sleep(1.5)
+                    await asyncio.sleep(0.5)
                 else:
                     await asyncio.sleep(0.3)
         if response_text:
@@ -1795,12 +1808,13 @@ async def ai_chat(req: AiChatRequest, request: Request):
     duration_ms = int((time.perf_counter() - t0) * 1000)
 
     if not response_text:
-        sanitized_err = sanitize_text(str(last_error)) if last_error else "Все кандидаты моделей вернули пустой ответ"
         cat = classify_ai_error(last_error) if last_error else AiErrorCategory.UPSTREAM_UNAVAILABLE
-        logger.error("All Gemini candidates failed (%s: %s).", cat.value, sanitized_err)
+        ui_info = get_ai_error_ui_info(cat)
+        user_msg = f"{ui_info['title']}: {ui_info['detail']}"
+        logger.error("All Gemini candidates failed (%s: %s).", cat.value, sanitize_text(str(last_error)))
         raise HTTPException(
-            status_code=502,
-            detail=f"Ошибка Google Gemini API ({cat.value}): {sanitized_err}",
+            status_code=503,
+            detail=user_msg,
         )
 
     return {

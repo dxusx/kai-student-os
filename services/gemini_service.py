@@ -423,12 +423,18 @@ class GeminiService:
         model: Optional[str] = None
     ):
         self.api_key = api_key or settings.gemini_api_key
-        self.model = model or settings.gemini_model or "gemini-3.5-flash"
+        self.model = model or settings.gemini_model or "gemini-3.6-flash"
         self.candidate_models = [self.model]
-        if "gemini-3.5-flash" not in self.candidate_models:
-            self.candidate_models.append("gemini-3.5-flash")
-        if "gemini-3.8-flash" not in self.candidate_models:
-            self.candidate_models.append("gemini-3.8-flash")
+        for m in [
+            "gemini-3.6-flash",
+            "gemini-3.5-flash",
+            "gemini-3.7-flash",
+            "gemini-3.5-flash-lite",
+            "gemini-2.5-flash-lite",
+            "gemini-3.8-flash",
+        ]:
+            if m not in self.candidate_models:
+                self.candidate_models.append(m)
         self._client: Optional[genai.Client] = None
         if self.api_key and genai is not None:
             base_target = getattr(settings, "gemini_base_url", None)
