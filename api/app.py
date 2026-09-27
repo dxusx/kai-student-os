@@ -1460,10 +1460,15 @@ async def ai_chat(req: AiChatRequest, request: Request):
             pending_tasks = await get_tasks(session, status="todo", owner_id=user.id)
 
         if pending_tasks:
-            pending_tasks_str = "\n".join(
+            total_count = len(pending_tasks)
+            shown_tasks = pending_tasks[:15]
+            tasks_lines = [
                 f"  {idx}. {t.title} [Предмет: {t.subject.name if t.subject else 'Общие'}] (дедлайн: {t.deadline.strftime('%d.%m.%Y %H:%M') if t.deadline else 'не указан'}, тип: {t.task_type})"
-                for idx, t in enumerate(pending_tasks, 1)
-            )
+                for idx, t in enumerate(shown_tasks, 1)
+            ]
+            if total_count > 15:
+                tasks_lines.append(f"  ... и еще {total_count - 15} задач в списке.")
+            pending_tasks_str = "\n".join(tasks_lines)
     except Exception as task_err:
         logger.warning("Could not gather pending tasks context for AI chat: %s", task_err)
 
@@ -1680,13 +1685,13 @@ async def ai_chat(req: AiChatRequest, request: Request):
                 "deadline": t.deadline.isoformat() if t.deadline else None,
                 "task_type": t.task_type,
             }
-            for t in pending_tasks
+            for t in pending_tasks[:25]
         ]
         executed_actions.append({
             "tool": "get_pending_tasks",
             "status": "executed",
             "requires_confirmation": False,
-            "summary": f"Найдено несданных задач: {len(res_tasks)}",
+            "summary": f"Найдено несданных задач: {len(pending_tasks)}",
             "data": res_tasks,
         })
 
