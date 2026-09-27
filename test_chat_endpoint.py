@@ -18,7 +18,7 @@ def main():
     base_url = sys.argv[1] if len(sys.argv) > 1 else "http://127.0.0.1:8000"
     url = f"{base_url.rstrip('/')}/api/ai/chat"
     token = "kai5108_secret_passcode_2026"
-    message = "что задано на завтра"
+    message = sys.argv[2] if len(sys.argv) > 2 else "как подготовится к итиоп"
 
     payload = json.dumps({"message": message}).encode("utf-8")
     headers = {
