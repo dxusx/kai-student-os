@@ -1757,20 +1757,12 @@ async def ai_chat(req: AiChatRequest, request: Request):
                     thinking_config=types.ThinkingConfig(thinking_budget=0),
                     temperature=0.7,
                 )
-                try:
-                    resp = await gemini_svc._client.aio.models.generate_content(
-                        model=m_name,
-                        contents=contents,
-                        config=gen_config,
-                    )
-                except Exception as aio_err:
-                    logger.warning("Gemini aio error (%s), attempting sync threadpool fallback...", aio_err)
-                    resp = await asyncio.to_thread(
-                        gemini_svc._client.models.generate_content,
-                        model=m_name,
-                        contents=contents,
-                        config=gen_config,
-                    )
+                resp = await asyncio.to_thread(
+                    gemini_svc._client.models.generate_content,
+                    model=m_name,
+                    contents=contents,
+                    config=gen_config,
+                )
                 if resp.text:
                     response_text = resp.text.strip()
                     succeeded_model = m_name
@@ -1781,7 +1773,17 @@ async def ai_chat(req: AiChatRequest, request: Request):
                 logger.warning("Gemini model %s error (attempt %d): %s", m_name, attempt + 1, sanitize_text(str(e)))
                 if "404" in err_s or "not_found" in err_s or "unregistered" in err_s:
                     break
-                await asyncio.sleep(0.3)
+                if "disconnected" in err_s or "connection" in err_s or "broken" in err_s:
+                    try:
+                        http_opts = types.HttpOptions(base_url=settings.gemini_base_url) if settings.gemini_base_url else None
+                        gemini_svc._client = genai.Client(api_key=gemini_svc.api_key, http_options=http_opts)
+                    except Exception as reinit_err:
+                        logger.warning("Failed to refresh Gemini client: %s", reinit_err)
+                    await asyncio.sleep(1.0)
+                elif "503" in err_s or "unavailable" in err_s or "429" in err_s:
+                    await asyncio.sleep(1.5)
+                else:
+                    await asyncio.sleep(0.3)
         if response_text:
             break
 
