@@ -4482,6 +4482,67 @@ button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visib
   letter-spacing: 0.02em;
 }
 
+/* AI Model Picker (Nothing OS Glass Selector) */
+.ai-model-picker {
+  display: flex;
+  align-items: center;
+}
+
+.ai-model-picker-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: rgba(20, 21, 23, 0.85);
+  border: 1px solid #26282d;
+  border-radius: 9px;
+  padding: 4px 8px;
+  cursor: pointer;
+  transition: border-color 0.2s, background 0.2s;
+}
+
+.ai-model-picker-label:hover {
+  border-color: rgba(255, 255, 255, 0.28);
+  background: rgba(28, 30, 34, 0.95);
+}
+
+.ai-model-icon {
+  font-size: 0.85rem;
+  line-height: 1;
+}
+
+.ai-model-select {
+  background: transparent !important;
+  color: #ededed !important;
+  font-family: var(--font-mono);
+  font-size: 0.74rem;
+  font-weight: 500;
+  border: none !important;
+  outline: none !important;
+  cursor: pointer;
+  padding: 2px 4px;
+  border-radius: 6px;
+  max-width: 230px;
+}
+
+.ai-model-select option {
+  background: #141517;
+  color: #ededed;
+  font-family: var(--font-sans);
+  font-size: 0.82rem;
+  padding: 8px 12px;
+}
+
+@media (max-width: 600px) {
+  .ai-model-select {
+    max-width: 140px;
+    font-size: 0.68rem;
+  }
+  .ai-model-picker-label {
+    padding: 3px 5px;
+    gap: 4px;
+  }
+}
+
 .nothing-avatar {
   width: 28px;
   height: 28px;
@@ -4621,6 +4682,21 @@ button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visib
   letter-spacing: 0.06em;
   color: #737373;
   text-transform: uppercase;
+}
+
+.ai-msg-model-badge {
+  font-family: var(--font-mono);
+  font-size: 0.65rem;
+  font-weight: 600;
+  letter-spacing: 0.03em;
+  color: #a3a3a3;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid #26282d;
+  border-radius: 6px;
+  padding: 2px 7px;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
 }
 
 .ai-msg-body pre,

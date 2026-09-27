@@ -1353,6 +1353,7 @@ class AiChatRequest(BaseModel):
     history: Optional[List[AiChatMessage]] = None
     image_base64: Optional[str] = None
     mode: Optional[str] = "tutor"
+    model: Optional[str] = None
 
 
 class CreateTaskRequest(BaseModel):
@@ -1384,6 +1385,54 @@ def get_gemini_service() -> GeminiService:
     if _shared_gemini_service is None:
         _shared_gemini_service = GeminiService()
     return _shared_gemini_service
+
+
+@api_router.get("/ai/models")
+async def get_ai_models():
+    """Return available Gemini models for user selection in the AI Studio interface."""
+    default_m = settings.gemini_model or "gemini-3.6-flash"
+    models_catalog = [
+        {
+            "id": "gemini-3.6-flash",
+            "name": "Gemini 3.6 Flash",
+            "badge": "Рекомендуется",
+            "description": "Сбалансированная, быстрая и стабильная"
+        },
+        {
+            "id": "gemini-3.7-flash",
+            "name": "Gemini 3.7 Flash",
+            "badge": "Новейшая",
+            "description": "Флагманская скорость и глубокий анализ"
+        },
+        {
+            "id": "gemini-3.5-flash",
+            "name": "Gemini 3.5 Flash",
+            "badge": "Классика",
+            "description": "Базовая Flash-модель"
+        },
+        {
+            "id": "gemini-3.5-flash-lite",
+            "name": "Gemini 3.5 Flash-Lite",
+            "badge": "Ультрабыстрая",
+            "description": "Мгновенный отклик для быстрых вопросов"
+        },
+        {
+            "id": "gemini-2.5-flash-lite",
+            "name": "Gemini 2.5 Flash-Lite",
+            "badge": "Легкая",
+            "description": "Компактная Flash-Lite модель"
+        },
+        {
+            "id": "gemini-3.8-flash",
+            "name": "Gemini 3.8 Flash",
+            "badge": "Превью",
+            "description": "Экспериментальная модель следующего поколения"
+        },
+    ]
+    return {
+        "current_default": default_m,
+        "models": models_catalog,
+    }
 
 
 @api_router.post("/ai/chat")
@@ -1745,8 +1794,9 @@ async def ai_chat(req: AiChatRequest, request: Request):
 
     contents.append(types.Content(role="user", parts=last_parts))
 
+    preferred_model = (req.model or settings.gemini_model or "gemini-3.6-flash").strip()
     candidate_models = [
-        settings.gemini_model or "gemini-3.6-flash",
+        preferred_model,
         "gemini-3.6-flash",
         "gemini-3.7-flash",
         "gemini-3.5-flash-lite",
@@ -1754,7 +1804,7 @@ async def ai_chat(req: AiChatRequest, request: Request):
         "gemini-3.5-flash",
         "gemini-3.8-flash",
     ]
-    # Deduplicate while preserving order
+    # Deduplicate while preserving user preference order
     seen_models = set()
     candidate_models = [m for m in candidate_models if not (m in seen_models or seen_models.add(m))]
 

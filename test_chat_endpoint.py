@@ -19,8 +19,12 @@ def main():
     url = f"{base_url.rstrip('/')}/api/ai/chat"
     token = "kai5108_secret_passcode_2026"
     message = sys.argv[2] if len(sys.argv) > 2 else "как подготовится к итиоп"
+    model_param = sys.argv[3] if len(sys.argv) > 3 else "gemini-3.7-flash"
 
-    payload = json.dumps({"message": message}).encode("utf-8")
+    req_data = {"message": message}
+    if model_param:
+        req_data["model"] = model_param
+    payload = json.dumps(req_data).encode("utf-8")
     headers = {
         "Authorization": f"Bearer {token}",
         "Content-Type": "application/json",
@@ -33,6 +37,7 @@ def main():
     print("=" * 80)
     print(f"[*] Target URL:  {url}")
     print(f"[*] Message:     {message}")
+    print(f"[*] Model Req:   {model_param}")
     print(f"[*] Auth Token:  {token[:8]}***")
     print("-" * 80)
 

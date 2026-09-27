@@ -2082,7 +2082,21 @@ function setupGeminiEvents() {
     state.aiChatHistory = [];
   }
 
-  // 1. Mode Switcher Chips (deprecated in Nothing OS)
+  // 1. Model Selector Setup (Nothing OS AI Studio)
+  const aiModelSelect = document.getElementById('ai-model-select');
+  if (aiModelSelect) {
+    const savedModel = localStorage.getItem('kai_preferred_ai_model');
+    if (savedModel && Array.from(aiModelSelect.options).some(o => o.value === savedModel)) {
+      aiModelSelect.value = savedModel;
+    }
+    aiModelSelect.addEventListener('change', () => {
+      localStorage.setItem('kai_preferred_ai_model', aiModelSelect.value);
+      const optText = aiModelSelect.options[aiModelSelect.selectedIndex]?.text || aiModelSelect.value;
+      showToast(`Модель: ${optText}`);
+    });
+  }
+
+  // 1.1 Mode Switcher Chips (deprecated in Nothing OS)
   const modeChips = document.querySelectorAll('.ai-mode-chip');
   if (modeChips && modeChips.length > 0) {
     modeChips.forEach((chip) => {
@@ -2277,11 +2291,13 @@ function setupGeminiEvents() {
     if (sendSpinner) sendSpinner.style.display = 'inline-block';
 
     try {
+      const selectedModel = (aiModelSelect && aiModelSelect.value) || localStorage.getItem('kai_preferred_ai_model') || 'gemini-3.6-flash';
       const payload = {
         message: text,
         history: state.aiChatHistory || [],
         image_base64: curImg,
         mode: 'universal',
+        model: selectedModel,
       };
 
       const abortController = new AbortController();
@@ -2312,6 +2328,7 @@ function setupGeminiEvents() {
           actionsHtml = data.actions.map(act => renderActionWidget(act)).join('');
         }
 
+        const modelBadge = data.metadata?.model || selectedModel;
         const assistantMsgEl = document.createElement('div');
         assistantMsgEl.className = 'ai-msg-bubble ai-msg-assistant glass-card';
         assistantMsgEl.innerHTML = `
@@ -2321,6 +2338,7 @@ function setupGeminiEvents() {
           <div class="ai-msg-content">
             <div class="ai-msg-header">
               <span class="ai-msg-author">Капи AI</span>
+              ${modelBadge ? `<span class="ai-msg-model-badge" title="Модель: ${escapeHtml(modelBadge)}">⚡ ${escapeHtml(modelBadge)}</span>` : ''}
             </div>
             <div class="ai-msg-body markdown-rendered">
               ${renderMarkdown(data.response)}
