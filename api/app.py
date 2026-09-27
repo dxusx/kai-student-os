@@ -1400,7 +1400,7 @@ async def ai_chat(req: AiChatRequest, request: Request):
     user = get_current_user(request)
     gemini_svc = get_gemini_service()
 
-    # 1. Gather live Moscow student context
+    # 1. Gather live Moscow student context (Isolated in try-except for resilience)
     now_msk = datetime.now(MSK_TZ)
     today_date = now_msk.date()
     today_wd = today_date.weekday() + 1  # 1..7 (1=Пн, 7=Вс)
@@ -1410,49 +1410,62 @@ async def ai_chat(req: AiChatRequest, request: Request):
     tomorrow_wd = tomorrow_date.weekday() + 1
     tomorrow_parity = get_week_parity(tomorrow_date)
 
-    raw_sched = get_cached_raw_schedule()
+    today_lessons = []
+    tomorrow_lessons = []
+    today_lessons_str = "  Информации о парах на сегодня нет"
+    tomorrow_lessons_str = "  Информации о парах на завтра нет"
 
     def _get_lessons_for_day(day_num: int, parity_val: int) -> List[Lesson]:
         if day_num > 6:
             return []
-        day_raw = raw_sched.get(str(day_num), [])
-        parsed = [Lesson.from_raw_dict(item) for item in day_raw]
-        filtered = [
-            l for l in parsed
-            if l.is_for_subgroup(settings.kai_subgroup) and l.is_active_on_parity(parity_val)
-        ]
-        return merge_and_deduplicate_lessons(filtered)
+        try:
+            raw_sched = get_cached_raw_schedule()
+            day_raw = raw_sched.get(str(day_num), [])
+            parsed = [Lesson.from_raw_dict(item) for item in day_raw]
+            filtered = [
+                l for l in parsed
+                if l.is_for_subgroup(settings.kai_subgroup) and l.is_active_on_parity(parity_val)
+            ]
+            return merge_and_deduplicate_lessons(filtered)
+        except Exception as e:
+            logger.warning("Could not resolve lessons for day %d: %s", day_num, e)
+            return []
 
-    today_lessons = _get_lessons_for_day(today_wd, today_parity)
-    tomorrow_lessons = _get_lessons_for_day(tomorrow_wd, tomorrow_parity)
+    try:
+        today_lessons = _get_lessons_for_day(today_wd, today_parity)
+        tomorrow_lessons = _get_lessons_for_day(tomorrow_wd, tomorrow_parity)
 
-    if today_lessons:
-        today_lessons_str = "\n".join(
-            f"  {idx}. {l.day_time} — {l.discipl_name} ({l.discipl_type}), ауд. {l.aud_num} ({l.build_num} зд.), преп. {l.prepod_name or '—'}"
-            for idx, l in enumerate(today_lessons, 1)
-        )
-    else:
-        today_lessons_str = "  Пар нет (выходной день или свободное окно)"
+        if today_lessons:
+            today_lessons_str = "\n".join(
+                f"  {idx}. {l.day_time} — {l.discipl_name} ({l.discipl_type}), ауд. {l.aud_num} ({l.build_num} зд.), преп. {l.prepod_name or '—'}"
+                for idx, l in enumerate(today_lessons, 1)
+            )
+        else:
+            today_lessons_str = "  Пар нет (выходной день или свободное окно)"
 
-    if tomorrow_lessons:
-        tomorrow_lessons_str = "\n".join(
-            f"  {idx}. {l.day_time} — {l.discipl_name} ({l.discipl_type}), ауд. {l.aud_num} ({l.build_num} зд.), преп. {l.prepod_name or '—'}"
-            for idx, l in enumerate(tomorrow_lessons, 1)
-        )
-    else:
-        tomorrow_lessons_str = "  Пар нет (выходной день или нет занятий по четности)"
+        if tomorrow_lessons:
+            tomorrow_lessons_str = "\n".join(
+                f"  {idx}. {l.day_time} — {l.discipl_name} ({l.discipl_type}), ауд. {l.aud_num} ({l.build_num} зд.), преп. {l.prepod_name or '—'}"
+                for idx, l in enumerate(tomorrow_lessons, 1)
+            )
+        else:
+            tomorrow_lessons_str = "  Пар нет (выходной день или нет занятий по четности)"
+    except Exception as sched_err:
+        logger.warning("Could not gather schedule context for AI chat: %s", sched_err)
 
-    # Query active pending tasks
-    async with async_session() as session:
-        pending_tasks = await get_tasks(session, status="todo", owner_id=user.id)
+    pending_tasks = []
+    pending_tasks_str = "  Все задачи сданы! Долгов и несданных лабораторных нет."
+    try:
+        async with async_session() as session:
+            pending_tasks = await get_tasks(session, status="todo", owner_id=user.id)
 
-    if pending_tasks:
-        pending_tasks_str = "\n".join(
-            f"  {idx}. {t.title} [Предмет: {t.subject.name if t.subject else 'Общие'}] (дедлайн: {t.deadline.strftime('%d.%m.%Y %H:%M') if t.deadline else 'не указан'}, тип: {t.task_type})"
-            for idx, t in enumerate(pending_tasks, 1)
-        )
-    else:
-        pending_tasks_str = "  Все задачи сданы! Долгов и несданных лабораторных нет."
+        if pending_tasks:
+            pending_tasks_str = "\n".join(
+                f"  {idx}. {t.title} [Предмет: {t.subject.name if t.subject else 'Общие'}] (дедлайн: {t.deadline.strftime('%d.%m.%Y %H:%M') if t.deadline else 'не указан'}, тип: {t.task_type})"
+                for idx, t in enumerate(pending_tasks, 1)
+            )
+    except Exception as task_err:
+        logger.warning("Could not gather pending tasks context for AI chat: %s", task_err)
 
     # 2. Track & execute tool actions if requested in the message
     executed_actions: List[Dict[str, Any]] = []
@@ -1741,14 +1754,23 @@ async def ai_chat(req: AiChatRequest, request: Request):
             try:
                 gen_config = types.GenerateContentConfig(
                     system_instruction=system_instruction,
-                    thinking_config=types.ThinkingConfig(thinking_budget=1024),
+                    thinking_config=types.ThinkingConfig(thinking_budget=0),
                     temperature=0.7,
                 )
-                resp = await gemini_svc._client.aio.models.generate_content(
-                    model=m_name,
-                    contents=contents,
-                    config=gen_config,
-                )
+                try:
+                    resp = await gemini_svc._client.aio.models.generate_content(
+                        model=m_name,
+                        contents=contents,
+                        config=gen_config,
+                    )
+                except Exception as aio_err:
+                    logger.warning("Gemini aio error (%s), attempting sync threadpool fallback...", aio_err)
+                    resp = await asyncio.to_thread(
+                        gemini_svc._client.models.generate_content,
+                        model=m_name,
+                        contents=contents,
+                        config=gen_config,
+                    )
                 if resp.text:
                     response_text = resp.text.strip()
                     succeeded_model = m_name

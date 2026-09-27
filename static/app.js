@@ -2284,11 +2284,19 @@ function setupGeminiEvents() {
         mode: 'universal',
       };
 
-      const res = await apiFetch(API_BASE + '/api/ai/chat', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
-      });
+      const abortController = new AbortController();
+      const timeoutId = setTimeout(() => abortController.abort(), 60000);
+      let res;
+      try {
+        res = await apiFetch(API_BASE + '/api/ai/chat', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+          signal: abortController.signal,
+        });
+      } finally {
+        clearTimeout(timeoutId);
+      }
 
       if (!res.ok) {
         const errData = await res.json().catch(() => ({}));
@@ -2334,13 +2342,15 @@ function setupGeminiEvents() {
 
     } catch (err) {
       console.error('AI Studio error:', err);
-      showToast(err.message || 'Ошибка AI Studio');
+      const isTimeout = err.name === 'AbortError';
+      const msg = isTimeout ? 'Превышено время ожидания ответа AI (60 секунд). Попробуйте снова.' : (err.message || 'Ошибка AI Studio');
+      showToast(msg);
       if (messagesContainer) {
         const errEl = document.createElement('div');
         errEl.className = 'ai-msg-bubble ai-msg-assistant glass-card ai-msg-error';
         errEl.innerHTML = `
           <div class="ai-msg-body">
-            <p>⚠️ ${escapeHtml(err.message || 'Произошла ошибка при обработке запроса.')}</p>
+            <p>⚠️ ${escapeHtml(msg)}</p>
           </div>
         `;
         messagesContainer.appendChild(errEl);
