@@ -431,30 +431,18 @@ class GeminiService:
             self.candidate_models.append("gemini-3.8-flash")
         self._client: Optional[genai.Client] = None
         if self.api_key and genai is not None:
-            proxy_target = getattr(settings, "gemini_proxy_url", None) or os.getenv("HTTPS_PROXY") or os.getenv("HTTP_PROXY")
             base_target = getattr(settings, "gemini_base_url", None)
-            cache_key = f"{self.api_key}::{proxy_target or ''}::{base_target or ''}"
+            cache_key = f"{self.api_key}::{base_target or ''}"
             if cache_key in _cached_genai_clients:
                 self._client = _cached_genai_clients[cache_key]
             else:
                 try:
-                    http_options = None
-                    if (proxy_target or base_target) and types is not None:
-                        opt_kwargs = {}
-                        if proxy_target:
-                            opt_kwargs["client_args"] = {"proxy": proxy_target}
-                            opt_kwargs["async_client_args"] = {"proxy": proxy_target}
-                        if base_target:
-                            opt_kwargs["base_url"] = base_target
-                        http_options = types.HttpOptions(**opt_kwargs)
-
-                    if http_options:
-                        self._client = genai.Client(api_key=self.api_key, http_options=http_options)
-                    else:
-                        self._client = genai.Client(api_key=self.api_key)
+                    http_opts = types.HttpOptions(base_url=settings.gemini_base_url) if getattr(settings, "gemini_base_url", None) and types is not None else None
+                    self._client = genai.Client(api_key=self.api_key, http_options=http_opts)
                     _cached_genai_clients[cache_key] = self._client
                 except Exception as e:
                     logger.error("Failed to initialize Google GenAI Client: %s", e)
+                    raise
 
     def is_available(self) -> bool:
         """Check if Gemini API key is configured and client initialized."""

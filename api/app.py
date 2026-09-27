@@ -1768,23 +1768,11 @@ async def ai_chat(req: AiChatRequest, request: Request):
     if not response_text:
         sanitized_err = sanitize_text(str(last_error)) if last_error else "Все кандидаты моделей вернули пустой ответ"
         cat = classify_ai_error(last_error) if last_error else AiErrorCategory.UPSTREAM_UNAVAILABLE
-        logger.warning("All Gemini candidates temporarily unavailable: %s (%s). Falling back gracefully.", sanitized_err, cat.value)
-        if executed_actions:
-            first_act = executed_actions[0]
-            if first_act.get("status") == "preview":
-                response_text = f"Я подготовил действие: {first_act.get('summary')}. Пожалуйста, подтвердите или отмените его в карточке ниже."
-            else:
-                response_text = f"Готово: {first_act.get('summary')}."
-            succeeded_model = "rule_based_fallback"
-        elif req.mode == "report" or any(k in clean_lower for k in ["отчет", "гост", "оформи"]):
-            response_text = "Я готов помочь с оформлением отчета по лабораторной работе (структура: титульный лист, цель, ход работы, выводы)."
-            succeeded_model = "rule_based_fallback"
-        elif req.image_base64:
-            response_text = "Я проанализировал переданное изображение (материал/фото задания). Готов помочь с решением или разбором конспекта."
-            succeeded_model = "rule_based_fallback"
-        else:
-            response_text = "Я — Капи AI, ваш интеллектуальный помощник (группа 5108). Чем я могу помочь вам по учебе, расписанию или задачам?"
-            succeeded_model = "rule_based_fallback"
+        logger.error("All Gemini candidates failed (%s: %s).", cat.value, sanitized_err)
+        raise HTTPException(
+            status_code=502,
+            detail=f"Ошибка Google Gemini API ({cat.value}): {sanitized_err}",
+        )
 
     return {
         "response": response_text,
