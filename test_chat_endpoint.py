@@ -52,7 +52,9 @@ def main():
             print("AI RESPONSE:")
             print(data.get("response", "<NO RESPONSE FIELD>"))
             print("=" * 80)
-            print(f"Model used: {data.get('model')}")
+            print(f"Model used: {data.get('metadata', {}).get('model')}")
+            print(f"Provider: {data.get('metadata', {}).get('provider')}")
+            print(f"Duration: {data.get('metadata', {}).get('duration_ms')} ms")
             print(f"Actions executed: {data.get('actions')}")
 
             if status_code == 200 and data.get("response"):
